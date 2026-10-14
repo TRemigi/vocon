@@ -51,3 +51,14 @@ export function appSlot(apps, options) {
     },
   };
 }
+
+// The rest of the utterance as one string ("dev platform"), for free-text arguments such as a
+// channel name. It consumes everything, so it must be the last word of a command.
+export function wordsSlot() {
+  return {
+    parse: function (tokens, index) {
+      if (index >= tokens.length) return [];
+      return [{ value: tokens.slice(index).join(" "), next: tokens.length }];
+    },
+  };
+}

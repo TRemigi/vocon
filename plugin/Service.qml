@@ -38,11 +38,19 @@ Item {
     onTriggered: service.dispatch({ type: "WatchdogExpired" })
   }
 
+  // `dictate` stays armed only briefly, so a later command can't be typed by mistake.
+  Timer {
+    id: dictationTimer
+    repeat: false
+    onTriggered: service.dispatch({ type: "DictationExpired" })
+  }
+
   Executor {
     id: executor
     voxtype: voxtype
     hypr: hypr
     watchdog: watchdog
+    dictationTimer: dictationTimer
   }
 
   ConfigStore {
@@ -69,6 +77,10 @@ Item {
 
     function status(): string {
       return service.sessionState.phase
+    }
+
+    function dictation(): string {
+      return service.sessionState.dictation ? "armed" : "off"
     }
 
     // Dev aid: run a transcript through the real pipeline without a microphone.

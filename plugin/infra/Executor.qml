@@ -3,6 +3,7 @@
 import QtQuick
 import Quickshell
 import "../core/execution/hyprctl.mjs" as Hyprctl
+import "../core/execution/keys.mjs" as Keys
 
 Item {
   id: root
@@ -10,6 +11,7 @@ Item {
   property var voxtype: null
   property var hypr: null
   property var watchdog: null
+  property var dictationTimer: null
 
   readonly property var handlers: ({
     "voxtype.start":      function(e) { root.voxtype.start(e.model, e.showOsd) },
@@ -18,6 +20,8 @@ Item {
     "hypr.snapshotClients": function(e) { root.hypr.snapshotClients() },
     "watchdog.arm":       function(e) { root.watchdog.interval = e.ms; root.watchdog.restart() },
     "watchdog.disarm":    function(e) { root.watchdog.stop() },
+    "dictation.timer.arm":    function(e) { root.dictationTimer.interval = e.ms; root.dictationTimer.restart() },
+    "dictation.timer.disarm": function(e) { root.dictationTimer.stop() },
     "notify":             function(e) {
       Quickshell.execDetached(["notify-send", "-a", "vocon", "-u", e.urgency, e.title, e.body])
     },
@@ -30,7 +34,8 @@ Item {
   function execute(effect) {
     var handler = handlers[effect.type]
     if (handler) { handler(effect); return }
-    var argv = Hyprctl.toArgv(effect)
+    // Hyprland dispatches, then keyboard input (wtype); both are argv arrays run detached.
+    var argv = Hyprctl.toArgv(effect) || Keys.toArgv(effect)
     if (argv) root.hypr.run(argv)
     else console.log("vocon: no handler for effect " + effect.type)
   }

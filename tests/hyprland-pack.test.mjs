@@ -17,7 +17,6 @@ const cases = [
   ["Work space 3", focus(3)],
   ["space ten", focus(10)],
   // move, with synonyms
-  ["send focused space 7", move(7)],
   ["move current workspace 8", move(8)],
   ["move focus space 6", move(6)],
   // mishearings via aliases / homophones
@@ -33,7 +32,7 @@ for (const [text, actions] of cases) {
   test(`"${text}"`, () => assert.deepEqual(run(text).actions, actions));
 }
 
-for (const text of ["this too", "space 11", "space 0", "move", "space", "banana", "move focused window", "go to workspace 4", "move window to space 2", "move focused to space 2"]) {
+for (const text of ["this too", "space 11", "space 0", "move", "space", "banana", "move focused window", "go to workspace 4", "move window to space 2", "move focused to space 2", "send focused space 7"]) {
   test(`no action for "${text}"`, () => {
     const r = run(text);
     assert.deepEqual(r.actions, []);

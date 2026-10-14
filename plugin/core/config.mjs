@@ -12,7 +12,11 @@ export var defaults = {
   // aliases: spoken word -> extra words the recogniser commonly produces for it.
   matching: { threshold: 0.8, aliases: { space: ["pace", "base", "spice"], move: ["moved", "moves"] } },
   feedback: { notifyOnNoMatch: true, notifyOnSuccess: false },
-  packs: { hyprland: {}, apps: {}, custom: {} },
+  packs: { hyprland: {}, apps: {}, slack: {}, dictation: {}, custom: {} },
+  // `dictate` types your next utterance into the focused window. armSeconds: how long it stays
+  // armed; maxSeconds: longest dictation; ignore: whole utterances never typed (Whisper often
+  // invents these from silence).
+  dictation: { armSeconds: 30, maxSeconds: 60, ignore: ["thank you for watching", "thanks for watching", "you"] },
   // Your own commands, each one a path in the same command tree as the built-ins:
   //   { "say": "lock screen", "exec": ["omarchy-system-lock"] }          run a command
   //   { "say": "notes", "launch": ["obsidian"] }                         start an app (uwsm-app)
@@ -158,6 +162,22 @@ function checkRanges(config, errors) {
     errors.push("matching.threshold must be in (0, 1]");
     fixed = Object.assign({}, fixed, { matching: Object.assign({}, fixed.matching, { threshold: defaults.matching.threshold }) });
   }
+  var dictation = config.dictation;
+  if (!(dictation.armSeconds >= 5 && dictation.armSeconds <= 300)) {
+    errors.push("dictation.armSeconds must be between 5 and 300");
+    dictation = Object.assign({}, dictation, { armSeconds: defaults.dictation.armSeconds });
+  }
+  if (!(dictation.maxSeconds >= 5 && dictation.maxSeconds <= 120)) {
+    errors.push("dictation.maxSeconds must be between 5 and 120");
+    dictation = Object.assign({}, dictation, { maxSeconds: defaults.dictation.maxSeconds });
+  }
+  if (!isWords(dictation.ignore)) {
+    errors.push("dictation.ignore must be an array of strings");
+    dictation = Object.assign({}, dictation, { ignore: defaults.dictation.ignore });
+  }
+  dictation = Object.assign({}, dictation, { ignore: dictation.ignore.map(function (w) { return normalize(w).join(" "); }) });
+  fixed = Object.assign({}, fixed, { dictation: dictation });
+
   var aliases = config.matching.aliases;
   var badAliases = Object.keys(aliases).filter(function (word) {
     var list = aliases[word];
@@ -187,6 +207,7 @@ export function fromObject(raw) {
     voxtype: mergeSection(defaults.voxtype, raw.voxtype, errors, "voxtype"),
     matching: mergeSection(defaults.matching, raw.matching, errors, "matching"),
     feedback: mergeSection(defaults.feedback, raw.feedback, errors, "feedback"),
+    dictation: mergeSection(defaults.dictation, raw.dictation, errors, "dictation"),
     packs: isObject(raw.packs) ? Object.assign({}, defaults.packs, raw.packs) : defaults.packs,
     apps: validateApps(mergeApps(defaults.apps, raw.apps, errors), errors),
     commands: validateCommands(raw.commands, errors),

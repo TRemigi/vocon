@@ -26,3 +26,13 @@ export function notify(title, body, urgency) {
 export function launch(argv) {
   return { type: "app.launch", argv: argv };
 }
+
+// Keyboard input to the focused window; see execution/keys.mjs for the steps.
+export function keysAction(steps) {
+  return { type: "keys.send", steps: steps };
+}
+
+// Type arbitrary (dictated) text into the focused window.
+export function typeText(text) {
+  return { type: "text.type", text: text };
+}

@@ -29,7 +29,7 @@ export var hyprlandPack = {
         }),
       ]),
 
-      command("move", { words: ["send"] }, [
+      command("move", {}, [
         keyword("focused", { words: ["focus", "current"] }, [
           keyword("space", { words: ["workspace"] }, [
             value("n", "workspace", {

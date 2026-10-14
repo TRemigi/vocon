@@ -4,6 +4,7 @@ import "../../plugin/core/pipeline.mjs" as Pipeline
 import "../../plugin/core/listening/session.mjs" as Session
 import "../../plugin/core/execution/hyprctl.mjs" as Hyprctl
 import "../../plugin/core/config.mjs" as Config
+import "../../plugin/core/execution/keys.mjs" as Keys
 
 // Loads the real core under Qt's V4 engine: catches syntax/import forms V4 rejects.
 TestCase {
@@ -55,6 +56,31 @@ TestCase {
     compare(hit.outcome.kind, "matched")
     compare(hit.actions[0].type, "exec")
     compare(Pipeline.interpret(cfg, { clients: inSlack }, "Tab next.").outcome.kind, "nomatch")
+  }
+
+  function test_slack_keys_and_dictation_under_v4() {
+    var cfg = Config.defaults
+    var slack = [{ address: "0x1", "class": "slack", title: "", mapped: true, focusHistoryID: 0 }]
+
+    var ch = Pipeline.interpret(cfg, { clients: slack }, "Channel dev platform.")
+    compare(ch.outcome.kind, "matched")
+    var argv = Keys.toArgv(ch.actions[0])
+    compare(argv[0], "wtype")
+    verify(argv.indexOf("dev platform") !== -1)
+
+    var s = Session.initialState()
+    var steps = [{ type: "PttPressed" }, { type: "PttReleased" },
+                 { type: "TranscriptReceived", text: "dictate" }, { type: "ClientsSnapshot", clients: slack },
+                 { type: "PttPressed" }, { type: "PttReleased" },
+                 { type: "TranscriptReceived", text: "hello there" }, { type: "ClientsSnapshot", clients: slack }]
+    var effects = []
+    for (var i = 0; i < steps.length; i++) {
+      var r = Session.reduce(s, steps[i]); s = r.state; effects = effects.concat(r.effects)
+    }
+    var typed = effects.filter(function (e) { return e.type === "text.type" })
+    compare(typed.length, 1)
+    compare(Keys.toArgv(typed[0])[4], "hello there")
+    compare(s.dictation, null)
   }
 
   function test_unusable_config_is_flagged() {

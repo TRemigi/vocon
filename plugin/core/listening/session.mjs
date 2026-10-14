@@ -12,10 +12,13 @@
 
 import { defaults } from "../config.mjs";
 import { interpret, registryErrors } from "../pipeline.mjs";
-import { notify } from "../execution/actions.mjs";
+import { notify, typeText } from "../execution/actions.mjs";
+import { activeWindow } from "../execution/windows.mjs";
+import { normalize } from "../interpretation/utterance.mjs";
 
 export function initialState(config) {
-  return { phase: "idle", transcript: null, clients: null, config: config || defaults };
+  // dictation: null, or { address } of the window it was armed for (see completeDictation)
+  return { phase: "idle", transcript: null, clients: null, dictation: null, config: config || defaults };
 }
 
 function log(message) {
@@ -53,8 +56,40 @@ function failureBody(transcript, outcome) {
   return heard + " —" + (outcome.kind === "incomplete" ? " missing" + after : " no match" + after) + expected;
 }
 
+// Dictation: `dictate` arms it; the next utterance is typed into the focused window instead of being
+// interpreted. It is single-shot and stays armed only until it expires, is cancelled, or the
+// focused window changes, so a later command can never be typed into the wrong place.
+function completeDictation(state) {
+  var heard = state.transcript.trim();
+  var words = normalize(heard).join(" ");
+  var active = activeWindow(state.clients);
+  var armed = state.dictation;
+
+  // Finish dictation: disarm it and its timer.
+  var end = function (effects) {
+    return result(Object.assign({}, idle(state), { dictation: null }),
+      [{ type: "watchdog.disarm" }, { type: "dictation.timer.disarm" }].concat(effects));
+  };
+  // Nothing usable heard: stay armed.
+  var keep = function (effects) {
+    return result(idle(state), [{ type: "watchdog.disarm" }].concat(effects));
+  };
+
+  if (words === "") return keep([notify("Dictation", "Didn't hear anything \u2014 still listening", "low"), log("dictation: nothing heard")]);
+  if (words === "cancel") return end([notify("Dictation cancelled", "", "low"), log("dictation: cancelled by voice")]);
+  if (state.config.dictation.ignore.indexOf(words) !== -1) {
+    return keep([notify("Dictation", "Ignored \u201c" + heard + "\u201d (probably silence) \u2014 still listening", "low"), log("dictation: ignored a likely hallucination")]);
+  }
+  if (armed.address && (!active || active.address !== armed.address)) {
+    return end([notify("Dictation cancelled", "The focused window changed", "normal"), log("dictation: focus changed, discarded")]);
+  }
+  // Only the length is logged: dictated text is message content.
+  return end([typeText(heard), log("dictation: typed " + heard.length + " characters")]);
+}
+
 // Both inputs are in: interpret and hand back the command's actions.
 function complete(state) {
+  if (state.dictation) return completeDictation(state);
   var interpreted = interpret(state.config, { clients: state.clients }, state.transcript);
   var outcome = interpreted.outcome;
   var feedback = state.config.feedback;
@@ -62,8 +97,15 @@ function complete(state) {
     (outcome.commandId ? " " + outcome.commandId + " (score " + outcome.score.toFixed(2) + ")" : ""))];
 
   if (outcome.kind === "matched") {
-    effects = effects.concat(interpreted.actions);
+    var arm = interpreted.actions.some(function (a) { return a.type === "dictation.arm"; });
+    effects = effects.concat(interpreted.actions.filter(function (a) { return a.type !== "dictation.arm"; }));
     if (feedback.notifyOnSuccess) effects.push(notify("Voice command", state.transcript, "low"));
+    if (arm) {
+      var focused = activeWindow(state.clients);
+      effects.push({ type: "dictation.timer.arm", ms: state.config.dictation.armSeconds * 1000 });
+      effects.push(notify("Dictation on", "Hold the key and speak; it types into this window. Say \u201ccancel\u201d to stop.", "low"));
+      return result(Object.assign({}, idle(state), { dictation: { address: focused ? focused.address : null } }), effects);
+    }
   } else if (outcome.kind !== "empty" && feedback.notifyOnNoMatch) {
     effects.push(notify(failureTitle(outcome), failureBody(state.transcript, outcome), "low"));
   }
@@ -96,7 +138,7 @@ export function reduce(state, event) {
       if (state.phase !== "idle") return result(state, [log("ignored press while " + state.phase)]);
       return result(Object.assign({}, state, { phase: "listening", transcript: null, clients: null }), [
         { type: "voxtype.start", model: state.config.voxtype.model, showOsd: state.config.voxtype.showOsd },
-        { type: "watchdog.arm", ms: state.config.voxtype.maxSeconds * 1000 },
+        { type: "watchdog.arm", ms: (state.dictation ? state.config.dictation.maxSeconds : state.config.voxtype.maxSeconds) * 1000 },
       ]);
 
     case "PttReleased":
@@ -126,9 +168,21 @@ export function reduce(state, event) {
         log("watchdog expired while " + state.phase),
       ]);
 
+    case "DictationExpired":
+      if (!state.dictation) return result(state);
+      return result(Object.assign({}, state, { dictation: null }), [
+        notify("Dictation timed out", "Say \u201cdictate\u201d to start again", "low"),
+        log("dictation expired"),
+      ]);
+
     case "Cancelled":
-      if (state.phase === "idle") return result(state);
-      return result(idle(state), [{ type: "watchdog.disarm" }, { type: "voxtype.cancel" }]);
+      if (state.phase === "idle") {
+        if (!state.dictation) return result(state);
+        return result(Object.assign({}, state, { dictation: null }),
+          [{ type: "dictation.timer.disarm" }, notify("Dictation cancelled", "", "low")]);
+      }
+      return result(Object.assign({}, idle(state), { dictation: null }),
+        [{ type: "watchdog.disarm" }, { type: "dictation.timer.disarm" }, { type: "voxtype.cancel" }]);
 
     default:
       return result(state);
