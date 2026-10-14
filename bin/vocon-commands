@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+// List the voice commands that are currently available, given ~/.config/vocon/config.json
+// (packs you disabled, your apps and your custom commands are all reflected).
+//
+//   vocon-commands [--synonyms] [--config <path>]
+//
+// Reads the config and runs the same pure core the plugin uses; needs no running shell.
+
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { parse, defaults } from "../plugin/core/config.mjs";
+import { buildRegistry } from "../plugin/core/commands/registry.mjs";
+import { builtinPacks } from "../plugin/core/commands/packs/index.mjs";
+import { describe, render } from "../plugin/core/commands/listing.mjs";
+
+const USAGE = "usage: vocon-commands [--synonyms] [--config <path>]\n" +
+  "  --synonyms   show every accepted spelling (space|workspace)\n" +
+  "  --config     config file to read (default ~/.config/vocon/config.json)\n";
+
+function fail(message, code) {
+  process.stderr.write(message + "\n");
+  process.exit(code);
+}
+
+const args = process.argv.slice(2);
+let synonyms = false;
+let path = join(homedir(), ".config", "vocon", "config.json");
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--synonyms") synonyms = true;
+  else if (args[i] === "--config" && args[i + 1]) path = args[++i];
+  else if (args[i] === "-h" || args[i] === "--help") { process.stdout.write(USAGE); process.exit(0); }
+  else fail("unknown argument: " + args[i] + "\n" + USAGE, 2);
+}
+
+let text = null;
+try {
+  text = readFileSync(path, "utf8");
+} catch (e) {
+  if (e.code !== "ENOENT") fail("cannot read " + path + ": " + e.message, 1);
+}
+
+let config = defaults;
+if (text === null) {
+  process.stderr.write("no config at " + path + ", listing the defaults\n");
+} else {
+  const parsed = parse(text);
+  if (!parsed.ok) fail(path + ": " + parsed.errors.join("; "), 1);
+  parsed.errors.forEach((e) => process.stderr.write("config: " + e + "\n"));
+  config = parsed.config;
+}
+
+const registry = buildRegistry(builtinPacks, config);
+registry.errors.forEach((e) => process.stderr.write("commands: " + e + "\n"));
+process.stdout.write(render(describe(registry), { synonyms }).join("\n") + "\n");

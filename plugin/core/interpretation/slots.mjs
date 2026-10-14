@@ -16,6 +16,7 @@ export function parseNumberToken(token) {
 // A workspace number 1..max, spoken as a digit or a number word.
 export function workspaceSlot(max) {
   return {
+    hint: "workspace number, 1-" + max,
     parse: function (tokens, index) {
       if (index >= tokens.length) return [];
       var n = parseNumberToken(tokens[index]);
@@ -31,6 +32,7 @@ export function workspaceSlot(max) {
 // accepted spoken form); `options` is config.matching (fuzzy + mishearing aliases).
 export function appSlot(apps, options) {
   return {
+    hint: "one of: " + Object.keys(apps).sort().join(", "),
     parse: function (tokens, index) {
       var found = [];
       Object.keys(apps).sort().forEach(function (key) {
@@ -56,6 +58,7 @@ export function appSlot(apps, options) {
 // channel name. It consumes everything, so it must be the last word of a command.
 export function wordsSlot() {
   return {
+    hint: "any words (the rest of what you say)",
     parse: function (tokens, index) {
       if (index >= tokens.length) return [];
       return [{ value: tokens.slice(index).join(" "), next: tokens.length }];

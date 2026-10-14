@@ -112,7 +112,7 @@ export var slackPack = {
     };
 
     var scoped = navigation(o, focused).concat(actions(o, focused)).map(function (node) {
-      return Object.assign({}, node, { when: whenSlack });
+      return Object.assign({}, node, { when: whenSlack, scope: "while Slack is focused" });
     });
     return scoped.concat([command("slack", {}, navigation(o, anywhere))]);
   },

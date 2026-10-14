@@ -127,6 +127,10 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
   `tests/adapter.test.mjs` is the worked example; `packs/slack.mjs` is the full one.
 - **User commands** (`config.commands`) become chains of keyword nodes (`custom.mjs`); `say` is the
   words, with `exec` | `launch` and optional `when.activeClass`.
+- **Command listing** (`commands/listing.mjs`, `bin/vocon-commands`): `describe(registry)` walks the
+  merged tree into one entry per runnable path; `render` formats it. It is derived from the tree, so
+  it can't drift from what the parser accepts. A `when`-guarded node should set `scope` (text for the
+  listing); slot types may set `hint` (what the argument accepts).
 - **App catalog** (`config.apps`) feeds `open <app>` / `focus <app>`: `match` (regex on window
   *class*), `launch` (argv), `aliases`. Built-in apps claim their spoken names first.
 - **Slot types**: `workspace` (1..N), `app` (catalog, longest name wins), `words` (rest of

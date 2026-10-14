@@ -19,6 +19,7 @@ function chain(entry) {
   if (entry.activeClass) {
     node = Object.assign({}, node, {
       when: function (ctx) { return classMatches(ctx.active, entry.activeClass); },
+      scope: "while a window matching /" + entry.activeClass + "/ is focused",
     });
   }
   return node;

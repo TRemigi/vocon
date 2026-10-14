@@ -5,6 +5,9 @@ import "../../plugin/core/listening/session.mjs" as Session
 import "../../plugin/core/execution/hyprctl.mjs" as Hyprctl
 import "../../plugin/core/config.mjs" as Config
 import "../../plugin/core/execution/keys.mjs" as Keys
+import "../../plugin/core/commands/registry.mjs" as Registry
+import "../../plugin/core/commands/packs/index.mjs" as Packs
+import "../../plugin/core/commands/listing.mjs" as Listing
 
 // Loads the real core under Qt's V4 engine: catches syntax/import forms V4 rejects.
 TestCase {
@@ -81,6 +84,13 @@ TestCase {
     compare(typed.length, 1)
     compare(Keys.toArgv(typed[0])[4], "hello there")
     compare(s.dictation, null)
+  }
+
+  function test_command_listing_under_v4() {
+    var registry = Registry.buildRegistry(Packs.builtinPacks, Config.defaults)
+    var lines = Listing.render(Listing.describe(registry), { synonyms: false })
+    verify(lines.indexOf("  space <n>") !== -1)
+    verify(lines.indexOf("Only while Slack is focused:") !== -1)
   }
 
   function test_unusable_config_is_flagged() {

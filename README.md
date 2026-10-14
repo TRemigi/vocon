@@ -484,6 +484,7 @@ left installed (`omarchy-voxtype-remove` removes it).
 | `bin/vocon-install [--restart]` | Install/update the plugin, enable it, seed the config. `--restart` restarts the shell so new code loads. |
 | `bin/vocon-keybind [key]` | Write the push-to-talk binding (default: `pushToTalk.key`). Backs up and rolls back on error. |
 | `omarchy-shell vocon start` / `stop` | What the key binding calls on press / release. |
+| `bin/vocon-commands [--synonyms] [--config <path>]` | List the voice commands currently available, from your config (disabled packs, your apps and custom commands included). Commands that only work while an app is focused are grouped by app. `--synonyms` shows every accepted spelling. Needs only `node`, not the running shell. |
 | `omarchy-shell vocon cancel` | Cancel a recording and disarm dictation. |
 | `omarchy-shell vocon status` | `idle`, `listening` or `transcribing`. |
 | `omarchy-shell vocon dictation` | `armed` or `off`. |
@@ -501,7 +502,7 @@ plugin/                      what gets installed
     interpretation/              normalising speech, word scoring, slot types, the command parser
     commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, slack, dictation, custom)
     execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
-bin/                         vocon-install, vocon-keybind
+bin/                         vocon-install, vocon-keybind, vocon-commands
 config/                      example configs (validated by the tests)
 tests/                       node:test unit tests, plus a QML smoke test of the core under Qt's engine
 ```

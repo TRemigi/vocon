@@ -5,7 +5,8 @@
 //       keyword("space", { words: ["workspace"] }, [
 //         value("n", "workspace", { run: function (args) { return [...]; } }) ]) ]) ])
 //
-// opts: words (extra accepted spellings), run(args, ctx, path) -> Action[], when(ctx) -> bool.
+// opts: words (extra accepted spellings), run(args, ctx, path) -> Action[], when(ctx) -> bool,
+// scope (text shown by the command listing for a `when`-guarded node, e.g. "while Slack is focused").
 // Pure; ES2017-conservative.
 
 export function keyword(name, opts, children) {
@@ -17,6 +18,7 @@ export function keyword(name, opts, children) {
     children: children || [],
     run: o.run,
     when: o.when,
+    scope: o.scope,
   };
 }
 
@@ -26,5 +28,5 @@ export var command = keyword;
 // A typed argument: `type` names a slot type (e.g. "workspace") provided by a pack.
 export function value(name, type, opts, children) {
   var o = opts || {};
-  return { kind: "value", name: name, type: type, words: [], children: children || [], run: o.run, when: o.when };
+  return { kind: "value", name: name, type: type, words: [], children: children || [], run: o.run, when: o.when, scope: o.scope };
 }
