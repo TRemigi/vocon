@@ -1,54 +1,301 @@
 # vocon
 
-Push-to-talk voice commands for the Omarchy 4 shell. Hold a key, speak, release: the
-transcript (via [VoxType](https://github.com/peteonrails/voxtype)) is matched against known
-commands and the resulting actions run through `hyprctl` / `uwsm-app`.
+Push-to-talk voice control for the [Omarchy](https://omarchy.org) 4 desktop. Hold a key, say a
+command, release. vocon turns your speech into text with [VoxType](https://github.com/peteonrails/voxtype)
+(**local only, nothing leaves your machine**), matches it against a list of known commands, and
+runs the result: switch workspaces, move windows, open or focus apps, drive Slack, dictate text,
+or run your own commands.
 
-## Install
-
-```sh
-omarchy-voxtype-install   # once: VoxType + model + user service
-bin/vocon-install         # copy plugin into ~/.config/omarchy/plugins/vocon, enable it, seed config
-bin/vocon-keybind         # bind pushToTalk.key (default F10) in ~/.config/hypr/bindings.lua
+```
+hold F10:   "space 2"                        ->  workspace 2 is focused
+hold F10:   "move focused space 1"           ->  the focused window moves to workspace 1
+hold F10:   "open slack"                     ->  Slack is focused, or started if it isn't running
+hold F10:   "slack channel dev platform"     ->  jumps to #dev-platform in Slack
+hold F10:   "dictate"   then   "Hi team..."  ->  your next utterance is typed into the focused window
 ```
 
-Config lives in `~/.config/vocon/config.json` (see `config/config.example.json`); it is
-reloaded on save. Re-run `bin/vocon-keybind` after changing `pushToTalk.key`, and
-`bin/vocon-install --restart` after changing plugin code (a running shell keeps the old
-code until it restarts; `--restart` runs `omarchy-restart-shell`). Avoid modifier combos for the key: if the
-modifier is released first, the key-release event can be missed (a watchdog cancels it after
-`voxtype.maxSeconds`).
+Commands are CLI-like (`move focused space 1`), not free-form sentences, so they are predictable,
+and new ones are easy to add.
 
-## Try it without a microphone
+**Contents:** [How it works](#how-it-works) · [Requirements](#requirements) ·
+[Installation](#installation) · [Using vocon](#using-vocon) · [Command reference](#command-reference) ·
+[Configuration](#configuration) · [Improving recognition](#improving-recognition) ·
+[Troubleshooting](#troubleshooting) · [Updating and uninstalling](#updating-and-uninstalling) ·
+[Command-line reference](#command-line-reference) · [Development](#development)
 
-```sh
-omarchy-shell vocon simulate "space 2"     # runs the real pipeline + hyprctl
-omarchy-shell vocon status                 # idle | listening | transcribing
+---
+
+## How it works
+
+```
+key press  ->  Hyprland binding  ->  vocon (an Omarchy shell plugin)  ->  VoxType records
+key release                                                              ->  transcript
+transcript + the list of open windows  ->  parsed against the command tree  ->  actions
+actions: hyprctl (windows/workspaces), uwsm-app (launch), wtype (keystrokes), notify-send
 ```
 
-Logs: `qs log -p /usr/share/omarchy/shell | grep vocon:`
+- **Speech-to-text** is VoxType, running locally. vocon only asks it to record and return text.
+- **Matching** is deterministic: each word is checked against what is valid at that position in
+  the command (`move` -> `focused` -> `space` -> a number). Nothing is guessed from similar-sounding
+  whole sentences, and nothing runs unless a command definition produced it. Your speech is never
+  passed to a shell.
+- **Everything is configurable**: the key, apps, mishearing corrections, and your own commands.
 
-## Commands
+## Requirements
 
-Commands are CLI-like: a command word followed by arguments, parsed left to right.
+| Needed | Notes |
+|---|---|
+| Omarchy 4 | Provides the Quickshell shell, Hyprland with its Lua config, `uwsm-app`, `omarchy-shell`. |
+| Hyprland 0.56+ | Commands use its Lua dispatchers (`hl.dsp.focus(...)`). Verified on 0.56.2. |
+| [VoxType](https://github.com/peteonrails/voxtype) | Installed by Omarchy's own installer (below). Verified on 1.1.0. |
+| `wtype` | Sends keystrokes for Slack and dictation. The VoxType installer installs it. |
+| `jq` | Used by the install scripts. Ships with Omarchy. |
+| A microphone | A **non-Bluetooth** mic is strongly recommended, see [the mic note](#2-choose-your-microphone). |
+
+Optional: `node` (any recent version) to run the unit tests.
+
+## Installation
+
+### 1. Install VoxType
+
+```sh
+omarchy-voxtype-install
+```
+
+(or in the Omarchy menu: Install -> AI -> Dictation). It installs VoxType and `wtype`, downloads
+a speech model (about 150 MB), and starts the `voxtype` user service. Check it is running:
+
+```sh
+systemctl --user is-active voxtype      # -> active
+```
+
+vocon does **not** use VoxType's own hotkey. Omarchy binds F9 to VoxType dictation; vocon uses a
+different key (F10 by default), and the two coexist.
+
+### 2. Choose your microphone
+
+**If you use Bluetooth headphones, read this first.** A Bluetooth headset switches from
+high-quality playback to a low-quality call profile when its microphone opens, and sends about
+1.5 seconds of silence while it switches. The start of what you say is cut off, so "space" is heard
+as "pace" or "base". The mic hardware isn't the problem; the profile switch is. Keep the headset
+for *listening* and record from another microphone (a webcam, the laptop mic, a USB mic).
+
+List the microphones VoxType can use:
+
+```sh
+arecord -L | grep ^sysdefault
+# sysdefault:CARD=Generic_1
+# sysdefault:CARD=B101          <- a USB webcam here
+# sysdefault:CARD=acp6x
+```
+
+Pick one (if unsure, try each and watch what vocon hears, see [Using vocon](#using-vocon)), then:
+
+```sh
+voxtype config set audio.device "sysdefault:CARD=B101"
+systemctl --user restart voxtype
+```
+
+> **Use the ALSA name** (`sysdefault:CARD=...`), not a `pactl` source name, even though VoxType's
+> config comment suggests `pactl`. A wrong name makes recording fail silently inside the daemon;
+> vocon will tell you "VoxType didn't start recording" if that happens.
+
+If you listen to music, also consider `voxtype config set audio.pause_media false`; by default
+VoxType pauses media players for the duration of every recording.
+
+### 3. Install the vocon plugin
+
+Clone or copy this repository somewhere, then from its root:
+
+```sh
+bin/vocon-install --restart
+```
+
+This validates the plugin, copies it to `~/.config/omarchy/plugins/vocon/` (Omarchy rejects
+symlinked plugins, so it copies), enables it in `~/.config/omarchy/shell.json` (a backup is made
+first), and creates `~/.config/vocon/config.json` if you don't have one. `--restart` restarts the
+Omarchy shell so it loads the plugin; your bar redraws for a moment. It is safe to run again at
+any time.
+
+### 4. Bind the push-to-talk key
+
+```sh
+bin/vocon-keybind            # uses pushToTalk.key from your config (default F10)
+bin/vocon-keybind F11        # or name a key
+```
+
+This adds a marked block to `~/.config/hypr/bindings.lua`, reloads Hyprland, and **rolls back
+automatically** if Hyprland reports a config error. A backup is saved next to the file. The binding
+runs `omarchy-shell -q vocon start` when you press the key and `... stop` when you release it.
+
+Prefer a plain key (F10, F11, ...). Combos that need a modifier held down can lose the key-release
+event if the modifier comes up first, which leaves a recording running until the 15-second safety
+limit cancels it.
+
+### 5. Verify without speaking
+
+```sh
+omarchy-shell vocon status                  # -> idle
+omarchy-shell vocon simulate "space 2"      # runs the real pipeline: workspace 2 is focused
+omarchy-shell vocon simulate "space 1"      # and back
+qs log -p /usr/share/omarchy/shell | grep vocon:
+# vocon: heard "space 2" -> matched space (score 1.00)
+```
+
+`simulate` feeds text through exactly the same path as a spoken command, **including running the
+resulting actions for real** (it will switch workspaces and send keystrokes to the focused window),
+so try it with harmless commands first.
+
+### 6. Try it by voice
+
+Hold F10, wait a beat, say **"space 2"**, release. Workspace 2 should focus. Then try
+"move focused space 1" and "open terminal". If something is off, see
+[Troubleshooting](#troubleshooting).
+
+## Using vocon
+
+**The basic gesture:** hold the key, wait about half a second for VoxType to start capturing, speak
+the command, release. Recognition takes a second or two on CPU (faster with a GPU or a smaller model).
+
+**Speak commands in order, without filler.** `move focused space 1`, not "please move the focused
+window to space one". Numbers can be digits or words ("space 3" / "space three"). Words that sound
+like numbers ("to", "for", "won") are accepted where a number is expected.
+
+**What you'll see:**
+
+- Success is silent by default (the action just happens). Set `feedback.notifyOnSuccess` for a
+  notification on every command.
+- If something isn't understood you get a notification that says where it went wrong:
+  - `"move" - missing after "move", expected: focused` (you stopped too early)
+  - `"move window" - no match after "move", expected: focused` (a word that isn't valid there)
+  - Slack commands such as `channel` simply aren't commands outside Slack.
+- Failures of the machinery (VoxType down, busy, or failing to start recording) are reported with
+  what to do next.
+- Everything vocon hears is logged: `qs log -p /usr/share/omarchy/shell | grep vocon:`
+  (dictated text is the exception; only its length is logged).
+
+**Cancelling:** `omarchy-shell vocon cancel` stops a recording, and disarms dictation.
+
+## Command reference
+
+### Workspaces and windows
 
 | Say | Does |
 |---|---|
-| `space <n>` | focus workspace n |
-| `move focused space <n>` | move the focused window to workspace n and follow it (`packs.hyprland.moveFollows: false` to stay) |
+| `space <n>` (or `workspace <n>`) | focus workspace n |
+| `move focused space <n>` | move the focused window to workspace n **and follow it** |
 
-| `open <app>` | focus the app's window if one is open, otherwise launch it |
-| `focus <app>` | focus the app's window; just tells you if it isn't running |
-| `dictate` | type your **next** utterance into the focused window instead of treating it as a command (see Dictation) |
+`<n>` is 1-10. `focused` also accepts `focus` and `current`; `space` also accepts `workspace`.
+To move a window without following it, set `packs.hyprland.moveFollows` to `false`. Change the
+workspace count with `packs.hyprland.workspaces`.
 
-`<n>` is 1-10, as a digit or a number word. Synonyms: `workspace` for `space`,
-`focus`/`current` for `focused`. Free-form phrasing ("go to workspace 4", "move window
-to space 2") is deliberately not accepted.
+### Apps
 
-## App catalog
+| Say | Does |
+|---|---|
+| `open <app>` (or `launch`, `start`) | focus the app's window if it is open, otherwise start it |
+| `focus <app>` | focus the app's window; tells you if it isn't running (never launches) |
 
-`<app>` is an entry of `apps` in `~/.config/vocon/config.json`, spoken by its name or an alias.
-Built in: `terminal`, `browser`, `files`, `spotify`, `obsidian`. Add your own:
+Built-in apps: `terminal`, `browser`, `files` (or `nautilus`), `spotify`, `obsidian`. Add your own
+in the [app catalog](#app-catalog). `open terminal` focuses the terminal you already have; for a
+second one, add a command (see [custom commands](#custom-commands)).
+
+### Dictation
+
+| Say | Does |
+|---|---|
+| `dictate` | the **next** time you hold the key, your speech is typed into the focused window instead of being treated as a command |
+| `cancel` (as the dictated phrase) | cancels dictation |
+
+Dictation is deliberately constrained so words can't land somewhere unintended:
+
+- It is **single-shot**: after one utterance is typed, vocon goes back to commands.
+- It **expires** after 30 seconds (`dictation.armSeconds`).
+- It is **discarded if the focused window changes** between saying `dictate` and speaking.
+- Things Whisper makes up from silence ("Thank you for watching") are never typed
+  (`dictation.ignore`).
+- Recordings can run up to 60 seconds (`dictation.maxSeconds`).
+
+Typical use in a chat app: focus the message box, hold the key and say "dictate", release, hold the
+key again and say your message, release, then say `send` (in Slack) or press Enter.
+
+### Slack
+
+Slack is driven through its own keyboard shortcuts. Say these **while Slack is focused**. Navigation
+commands also work from any app when prefixed with `slack` (`slack channel dev`), which focuses
+Slack first.
+
+| Say | Does | Slack shortcut |
+|---|---|---|
+| `channel <name>` (or `dm`, `person`, `conversation`) | switch to a channel or person by name | Ctrl+K, type, Enter |
+| `unread` / `unread next` | next unread channel or DM | Alt+Shift+Down |
+| `unread previous` | previous unread | Alt+Shift+Up |
+| `unread all` | the All unreads view | Ctrl+Shift+A |
+| `unread first` | first unread message in this conversation | Ctrl+J |
+| `back`, `forward` | previous / next location in history | Alt+Left / Alt+Right |
+| `message` | start navigating messages at the latest one | Up (from an empty composer) |
+| `message up` / `down` | previous / next message | Up / Down |
+| `message top` / `bottom` | oldest / newest message | Home / End |
+| `message page up` / `page down` | scroll by a page | Page Up / Page Down |
+| `message thread` / `message main` | into a thread / back to the conversation | Right / Left |
+| `edit` | edit the focused message (yours) | E |
+| `delete` | start deleting the focused message (opens Slack's confirmation) | Delete |
+| `confirm` | accept Slack's confirmation | Enter |
+| `send` | send the draft | Enter |
+| `newline` | add a line in the draft | Shift+Enter |
+
+**Safety:** `send`, `edit`, `delete`, `confirm` and `newline` exist **only while Slack is the
+focused window**, so they only act on something you are looking at. `slack send` from another app
+is rejected. Deleting takes two spoken steps by design.
+
+**Limits** (from Slack's own keyboard-shortcut documentation):
+
+- There is no shortcut to *focus the message field*, so vocon has no command for it. After
+  switching conversations Slack normally leaves the composer focused.
+- `message` presses Up from an empty composer. Depending on a Slack preference that either
+  focuses your latest message or edits the last one you sent.
+- `edit`/`delete` are single-key shortcuts that apply to a focused message you sent. With the
+  cursor in the composer they act as ordinary keys.
+- Esc marks a conversation read in Slack, so there is no command for it.
+- If your Slack sends with Ctrl+Enter, set `packs.slack.send` to `"ctrl+Return"`.
+- If Slack is slow to open its switcher, raise `packs.slack.switcherDelay` /
+  `resultsDelay` (milliseconds).
+
+### Custom commands
+
+Add your own in the `commands` list of `~/.config/vocon/config.json`. They reload when you save.
+
+```json
+"commands": [
+  { "say": "lock screen",  "exec":   ["omarchy-system-lock"] },
+  { "say": "night light",  "exec":   ["omarchy-toggle-nightlight"] },
+  { "say": "new terminal", "launch": ["xdg-terminal-exec"] },
+  { "say": "volume up",    "exec":   ["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", "5%+"] },
+  { "say": "volume down",  "exec":   ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"] },
+  { "say": "next",
+    "exec": ["wtype", "-M", "ctrl", "-k", "Tab", "-m", "ctrl"],
+    "when": { "activeClass": "^(chromium|firefox)$" } }
+]
+```
+
+- `say`: the words to speak; each word is one level of the command (`lock` then `screen`).
+- `exec`: an argv array, run directly with **no shell** (`["cmd", "arg", ...]`).
+  `launch`: an argv array started through `uwsm-app --`, like Omarchy's own bindings.
+  Give exactly one of the two.
+- `when.activeClass` (optional): a regex on the focused window's class. The command exists only
+  while that app is focused, so the same word can mean different things in different apps (above:
+  `next` is "next tab" in a browser; another `next` entry could mean "next track" in Spotify).
+  Find class names with `hyprctl clients -j | jq -r '.[].class'`.
+- Commands that share a first word merge (`volume up`, `volume down`). A command can extend a
+  built-in (`focus mode` next to `focus <app>`), and your keyword beats a generic argument
+  (`open notes` beats `open <app>`). Defining the same words twice is reported; the first wins.
+
+A larger, tested set is in [`config/custom-commands.example.json`](config/custom-commands.example.json):
+system toggles, volume and brightness, browser tabs, Spotify, Obsidian. Copy the entries you want.
+
+### App catalog
+
+`open <app>` and `focus <app>` use the `apps` section of your config:
 
 ```json
 "apps": {
@@ -59,165 +306,160 @@ Built in: `terminal`, `browser`, `files`, `spotify`, `obsidian`. Add your own:
 }
 ```
 
-- `match`: regex tested against the window **class** (case-insensitive, word-bounded, like
-  `omarchy-launch-or-focus`). Class only, so a browser tab titled "Slack" is not Slack. Default:
-  the name. Find classes with `hyprctl clients -j | jq -r '.[].class'`.
-- `launch`: argv run through `uwsm-app --` when no window matches. Default: the name (single-word
-  names only). It comes from config only; speech just selects an entry, it never becomes a command.
-- `aliases`: other spoken names. An entry overrides a built-in field by field; `null` removes one.
-- Invalid entries (bad regex, no launch command, a spoken name already taken) are reported when
-  the config loads and skipped; the rest keep working.
+- The key is the spoken name (it may be several words).
+- `match`: a regex tested against the window **class** (case-insensitive, word-bounded). Class
+  only, so a browser tab titled "Slack" never counts as Slack. Default: the name.
+- `launch`: argv started via `uwsm-app --` when no window matches. Default: the name (single-word
+  names only). It comes from your config, never from speech.
+- `aliases`: other spoken names. `{}` is enough for an app whose command and window class equal its name.
+- An entry overrides a built-in field by field; `null` removes a built-in app.
+- Invalid entries (bad regex, missing launch command, a name already taken) are reported when the
+  config loads and skipped; the rest keep working.
 
-Each word is resolved only against what is valid at that point, so commands can't collide:
-`move` can later gain `all` or `group` arguments (`move all space 2`, `move focused group dev`)
-without affecting anything else. A word that doesn't fit is reported by position, e.g.
-`"move window" - no match after "move", expected: focused`.
+## Configuration
 
-Mishearings are handled per word, not per phrase: near-misses of longer words (similarity >=
-`matching.threshold`) and `matching.aliases` (command word -> words the recogniser tends to
-produce, e.g. `"space": ["pace", "base"]`). A list you set for a word replaces its default list.
+Your config is `~/.config/vocon/config.json` (created on install from
+[`config/config.example.json`](config/config.example.json)). **It reloads when you save**, no restart
+needed, except `pushToTalk.key`, which also needs `bin/vocon-keybind` to be re-run. Every key is
+optional; anything you omit uses the default.
 
-## Slack
+If the file can't be used at all (invalid JSON), vocon shows a notification and **keeps the last good
+configuration** rather than resetting. Problems inside an otherwise valid file (a bad entry, a
+conflict) are reported and only that entry is skipped.
 
-Slack is driven through its own keyboard shortcuts (`plugin/core/commands/packs/slack.mjs`). Say
-these while Slack is focused, or prefix any navigation command with `slack` to focus Slack first
-from anywhere (`slack channel dev`).
-
-| Say | Does | Slack shortcut |
+| Key | Default | Meaning |
 |---|---|---|
-| `channel <name>` (or `dm`, `person`) | switch by name | Ctrl+K, type, Enter |
-| `unread` / `unread next` / `unread previous` | next / previous unread channel or DM | Alt+Shift+Down / Up |
-| `unread all`, `unread first` | All unreads view; first unread message | Ctrl+Shift+A, Ctrl+J |
-| `back`, `forward` | previous / next location in history | Alt+Left / Right |
-| `message` (`up`, `down`, `top`, `bottom`, `page up`, `page down`) | move between messages | Up from an empty composer, then arrows, Home/End, Page keys |
-| `message thread`, `message main` | into a thread / back to the conversation | Right / Left |
-| `edit`, `delete`, `confirm` | act on the focused message (yours only) | E, Delete, Enter |
-| `send`, `newline` | send the draft / add a line | Enter, Shift+Enter |
+| `pushToTalk.key` | `"F10"` | The key to hold. Re-run `bin/vocon-keybind` after changing it. |
+| `voxtype.model` | `null` | Model for command recordings (`--model`). `null` = VoxType's default. Must be a model VoxType knows about. |
+| `voxtype.showOsd` | `true` | Show VoxType's on-screen indicator while recording. |
+| `voxtype.maxSeconds` | `15` | Longest command recording (1-120); a safety limit. |
+| `voxtype.transcribeTimeoutSeconds` | `20` | How long to wait for a transcript. |
+| `matching.threshold` | `0.8` | How close a mis-heard word must be to a command word (0-1; higher is stricter). Only words of 4+ letters are fuzzy-matched. |
+| `matching.aliases` | `space: [pace, base, spice]`, `move: [moved, moves]` | Words the recogniser tends to produce for a command word. A list you set for a word **replaces** its default list. |
+| `feedback.notifyOnNoMatch` | `true` | Notify when a command isn't understood. |
+| `feedback.notifyOnSuccess` | `false` | Notify with the transcript on every successful command. |
+| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `slack`, `dictation`, `custom`. |
+| `packs.hyprland.workspaces` | `10` | Highest workspace number you can say. |
+| `packs.hyprland.moveFollows` | `true` | Whether `move focused space n` also switches to that workspace. |
+| `packs.slack.match` | `"^slack$"` | Regex for the Slack window class. |
+| `packs.slack.send` | `"Return"` | Key `send` presses (`"ctrl+Return"` for Ctrl+Enter). |
+| `packs.slack.focusDelay` | `300` | ms to let Slack take focus (the `slack ...` form). |
+| `packs.slack.switcherDelay` | `350` | ms for Slack's quick switcher to open before typing. |
+| `packs.slack.resultsDelay` | `450` | ms for its results to settle before Enter. |
+| `dictation.armSeconds` | `30` | How long `dictate` stays armed (5-300). |
+| `dictation.maxSeconds` | `60` | Longest dictation recording (5-120). |
+| `dictation.ignore` | `["thank you for watching", "thanks for watching", "you"]` | Whole utterances never typed (Whisper often invents these from silence). |
+| `apps` | built-ins | The [app catalog](#app-catalog). |
+| `commands` | `[]` | Your [custom commands](#custom-commands). |
 
-Only the navigation commands work from anywhere. `send`, `edit`, `delete` and `confirm` exist only
-while Slack is focused, so they act on a window you are looking at. `delete` only opens Slack's
-confirmation; `confirm` accepts it.
-
-Settings, under `packs.slack` in your config: `match` (window class regex, default `^slack$`),
-`send` (`"ctrl+Return"` if Slack sends with Ctrl+Enter), and the delays `focusDelay`,
-`switcherDelay`, `resultsDelay` (ms) to raise if Slack is slow to open its switcher.
-
-Limits, from Slack's shortcut documentation:
-
-- **No "focus the message field"**: Slack documents no shortcut for it (F6 cycles sections in an
-  undocumented order), so vocon doesn't offer one. Switching conversations normally leaves the
-  composer focused.
-- **`message`** presses Up from an empty composer; depending on a Slack preference that either
-  focuses your latest message or edits your last sent one.
-- **`edit` / `delete`** are single-key shortcuts (`E`, `Delete`) that apply to a focused message
-  and only to messages you sent. With the cursor in the composer they act as plain keys.
-- Esc marks the conversation read in Slack, so vocon has no command for it.
-
-## Dictation
-
-`dictate` makes your *next* press of the key a message to type instead of a command to run: it
-is transcribed and typed into the focused window (any app; in Slack, follow with `send`).
-
-- Single-shot, and it expires after `dictation.armSeconds` (default 30).
-- It is discarded if the focused window changes, so words never land somewhere you didn't intend.
-- Say `cancel` (or run `omarchy-shell vocon cancel`) to stop; `omarchy-shell vocon dictation`
-  shows `armed` or `off`.
-- Whisper invents phrases like "Thank you for watching" from silence; whole utterances listed in
-  `dictation.ignore` are never typed. `dictation.maxSeconds` (default 60) is the longest recording.
-- Typing uses `wtype` (installed with VoxType). Text goes through stdin, so it can't be mistaken
-  for key presses, and the log records only its length.
-
-## Custom commands
-
-Add your own commands in `~/.config/vocon/config.json`; they join the same command tree as the
-built-ins and reload on save:
+Minimal example:
 
 ```json
-"commands": [
-  { "say": "lock screen", "exec": ["omarchy-system-lock"] },
-  { "say": "notes", "launch": ["obsidian"] },
-  { "say": "tab next", "exec": ["my-script", "next"], "when": { "activeClass": "^firefox$" } }
-]
+{
+  "pushToTalk": { "key": "F10" },
+  "matching": { "aliases": { "claude": ["cloud", "clod"] } },
+  "apps": { "slack": {}, "claude desktop": { "match": "^com.anthropic.Claude$", "launch": ["claude-desktop"], "aliases": ["claude"] } },
+  "commands": [ { "say": "lock screen", "exec": ["omarchy-system-lock"] } ]
+}
 ```
 
-A larger, tested set is in `config/custom-commands.example.json`: system toggles, volume and
-brightness, launch variants, and per-app commands (browser tabs, Spotify, Obsidian) that
-send each app its own shortcut with `wtype`. Copy the entries you want into your `commands` list.
+## Improving recognition
 
-- `say`: the words to speak (each word is one level of the tree, so `lock` then `screen`).
-- `exec`: an argv array run directly (no shell). `launch`: an argv array started via `uwsm-app --`.
-  Exactly one of the two. Argv comes from config only; speech just selects the command.
-- `when.activeClass`: regex on the focused window's class; the command exists only while that
-  app is focused, so the same words can mean different things in different apps.
-- Commands sharing a first word merge (`lock screen`, `lock session`), and a command can extend a
-  built-in one (`move all`). A keyword you define beats a value argument (`open notes` beats
-  `open <app>`). Defining the same words twice is reported and the first definition wins.
-- A pack can be switched off with `"packs": { "apps": { "enabled": false } }` (also `hyprland`,
-  `custom`).
+Most misrecognition is audio, not the model. In rough order of payoff:
 
-A config file that can't be used at all (bad JSON) is rejected with a notification and the last
-good config stays active. Problems inside an otherwise valid file (a bad entry, a pack conflict)
-are reported and just that entry is skipped.
-
-## Writing a pack (app adapters)
-
-A pack is a small module: `{ id, commands(config) -> [root nodes], slotTypes?(config) }`, listed in
-`plugin/core/commands/packs/index.mjs`. An app adapter is a pack whose root nodes carry a `when`,
-so its commands exist only while that app is focused (`tests/adapter.test.mjs` is the worked
-example, with tests):
-
-```js
-const whenFirefox = (ctx) => classMatches(ctx.active, "^firefox$");   // ctx.active = focused window
-
-export const firefoxAdapter = {
-  id: "firefox",
-  commands: () => [
-    command("tab", { when: whenFirefox }, [
-      keyword("next",     { run: () => [exec([...])] }),
-      keyword("previous", { words: ["back"], run: () => [exec([...])] }),
-    ]),
-  ],
-};
-```
-
-`run(args, ctx, path)` returns action descriptors, which the shell executes. Sending a keyboard
-shortcut to an app is the natural action for adapters; it isn't built yet (Hyprland's
-`send_shortcut` can leave keys stuck, see Omarchy's `default/hypr/bindings/clipboard.lua` for the
-workaround), so the example uses `exec`.
+1. **Record from a non-Bluetooth microphone** ([step 2](#2-choose-your-microphone)). Check what was
+   heard with `qs log -p /usr/share/omarchy/shell | grep "vocon: heard"`.
+2. **Add aliases for words you see mis-heard.** If you say "claude" and it logs "cloud", add
+   `"matching": { "aliases": { "claude": ["cloud"] } }`. The key is the word in your app name or
+   command; the list is what the recogniser produced.
+3. **Use a larger model.** `base.en` is the smallest. Try `small.en` via `voxtype setup model`.
+4. **Use the GPU.** `voxtype setup gpu --enable` (Vulkan) makes larger models fast.
+5. **Bias the vocabulary** with VoxType's Whisper prompt, e.g.
+   `voxtype config set whisper.initial_prompt "Commands: space 1, workspace 2, move focused space 3, open Slack."`
+   then `systemctl --user restart voxtype`. This is a nudge, not a guarantee, and it also applies
+   to VoxType's own dictation.
+6. **Wait a beat** after pressing the key before you speak; VoxType takes a fraction of a second
+   to start capturing.
+7. **Voice-activity detection** (`voxtype setup vad`) can reduce phantom text from silence.
 
 ## Troubleshooting
 
-- Nothing happens on F10: `omarchy-shell vocon status`, then `qs log -p /usr/share/omarchy/shell | grep vocon:`.
-  vocon reports VoxType being down, busy, or failing to start recording (e.g. a wrong
-  `audio.device`). VoxType takes ALSA names (`sysdefault:CARD=...`), not `pactl` source names.
-- Headset mics: Bluetooth headsets switch profile when the mic opens and send ~1.5 s of silence,
-  clipping the first word. Record from another mic: `voxtype config set audio.device "sysdefault:CARD=<card>"`.
+First, always: `omarchy-shell vocon status` (should print `idle`) and
+`qs log -p /usr/share/omarchy/shell | grep vocon:`.
 
-## Design
+| Symptom | Likely cause and fix |
+|---|---|
+| Pressing the key does nothing | Check the binding exists: `hyprctl binds -j \| jq '.[] \| select(.description\|test("vocon"))'`. Re-run `bin/vocon-keybind`. If `status` errors, the plugin isn't loaded: `bin/vocon-install --restart`. |
+| Notification: "VoxType isn't running" | `systemctl --user start voxtype`, or run `omarchy-voxtype-install`. |
+| Notification: "VoxType didn't start recording" | Almost always a wrong `audio.device`. Use an ALSA name from `arecord -L \| grep ^sysdefault`, then restart the `voxtype` service. See the daemon's complaint: `journalctl --user -u voxtype -n 20`. |
+| Notification: "VoxType is busy" | Another recording or dictation is in progress (F9 dictation, or a stuck one). Wait, or `voxtype record cancel`. |
+| It hears nothing / empty results | Wrong or muted mic. Test: `voxtype record start --file=/tmp/t.txt --no-osd; sleep 3; voxtype record stop --wait --json`. |
+| "space" is heard as "pace"/"base"/"this" | Bluetooth mic clipping the first word ([step 2](#2-choose-your-microphone)); otherwise add an alias. |
+| It types or runs "Thank you for watching" | Whisper inventing text from silence. In commands it just doesn't match; in dictation it is ignored (`dictation.ignore`). Try `voxtype setup vad`. |
+| Changed plugin code but nothing changed | A running shell keeps the old code: `bin/vocon-install --restart`. |
+| Config change ignored | A notification explains it. Bad JSON keeps the old config; check with `jq . ~/.config/vocon/config.json`. |
+| Slack commands do nothing | Slack must be the focused window (except `slack ...`). Check its class: `hyprctl clients -j \| jq -r '.[].class'` and set `packs.slack.match` if it isn't `slack`. Make sure `wtype` is installed. Raise the Slack delays if the switcher is slow. |
+| "Slack isn't running" | The `slack ...` form needs a Slack window; say `open slack` first. |
+| Keystrokes went to the wrong window | Keystroke commands go to whichever window is focused when they run. Hyprland's focus follows the mouse by default, so a nudge of the mouse mid-command can change the target. |
+| Music pauses on every command | `voxtype config set audio.pause_media false`, then restart `voxtype`. |
+| Transcription is slow | Use a GPU (`voxtype setup gpu --enable`) or a smaller model. |
+| A command you expect isn't recognised | Commands are strict: say the words in order with no filler. The notification lists what was expected next. Test it: `omarchy-shell vocon simulate "<what you said>"`. |
 
-The constraints and the reasoning behind them are in [`AGENTS.md`](AGENTS.md); read it before changing code.
+## Updating and uninstalling
 
-Functional core, imperative shell. Everything under `plugin/core/` is pure ES modules (no Qt,
-no I/O), loaded by QML and by `node --test`; `plugin/Service.qml` + `plugin/infra/` are the
-only code with side effects. The core is split by bounded context:
+**Update:** pull or copy the new version, then `bin/vocon-install --restart`. Your config is kept.
+Re-run `bin/vocon-keybind` only if the key binding mechanism changed.
 
-- `listening/` — push-to-talk session as a state machine: `reduce(state, event) -> { state, effects }`
-- `interpretation/` — normalise transcripts; `parser.mjs` walks the command tree one word per level; `words.mjs` scores a heard word against a command word
-- `commands/` — the command tree (`dsl.mjs`: `command` / `keyword` / `value` nodes), packs, and the registry that merges packs and rejects conflicts
-- `execution/` — action descriptors and the `hyprctl` anti-corruption layer (descriptors -> argv)
+**Uninstall:**
 
-Add commands by writing a pack (`{ id, commands(config) -> [root nodes], slotTypes?(config) }`)
-in `plugin/core/commands/packs/` and listing it in `index.mjs`. Root nodes with the same name
-merge across packs, so a pack can extend an existing command; `registryErrors()` reports
-conflicts (duplicate `run`, colliding sibling words) and they are surfaced when config loads.
-`tests/registry.test.mjs` shows a pack adding `move all space <n>` to the built-in `move`.
+```sh
+omarchy plugin remove vocon --yes                    # disables it; folder moved to a backup
+sed -i '/^-- vocon:begin$/,/^-- vocon:end$/d' ~/.config/hypr/bindings.lua && hyprctl reload
+rm -rf ~/.config/vocon                               # optional: your vocon config
+```
 
-Speech text never reaches a shell: slots resolve to numbers or catalog entries, and every
-exec is an argv array.
+The `sed` line removes only the four-line block that `bin/vocon-keybind` added. VoxType itself is
+left installed (`omarchy-voxtype-remove` removes it).
 
-## Tests
+## Command-line reference
+
+| Command | Does |
+|---|---|
+| `bin/vocon-install [--restart]` | Install/update the plugin, enable it, seed the config. `--restart` restarts the shell so new code loads. |
+| `bin/vocon-keybind [key]` | Write the push-to-talk binding (default: `pushToTalk.key`). Backs up and rolls back on error. |
+| `omarchy-shell vocon start` / `stop` | What the key binding calls on press / release. |
+| `omarchy-shell vocon cancel` | Cancel a recording and disarm dictation. |
+| `omarchy-shell vocon status` | `idle`, `listening` or `transcribing`. |
+| `omarchy-shell vocon dictation` | `armed` or `off`. |
+| `omarchy-shell vocon simulate "<text>"` | Run text through the real pipeline, **executing the actions for real**. |
+| `qs log -p /usr/share/omarchy/shell \| grep vocon:` | What vocon heard and decided. |
+
+## Development
+
+```
+plugin/                      what gets installed
+  manifest.json  Service.qml   the Omarchy plugin entry; wires events to the pure core
+  infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
+  core/                        pure ES modules, no Qt and no I/O
+    listening/                   the push-to-talk session state machine (and dictation)
+    interpretation/              normalising speech, word scoring, slot types, the command parser
+    commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, slack, dictation, custom)
+    execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
+bin/                         vocon-install, vocon-keybind
+config/                      example configs (validated by the tests)
+tests/                       node:test unit tests, plus a QML smoke test of the core under Qt's engine
+```
+
+The design is a functional core and an imperative shell: everything under `plugin/core/` is pure
+and testable with plain Node, and only `Service.qml` and `infra/` do anything. The constraints,
+decisions and gotchas are written down in [`AGENTS.md`](AGENTS.md); **read it before changing code**.
 
 ```sh
 node --test tests/*.test.mjs
 QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input tests/qml/tst_core.qml
+omarchy plugin validate plugin
 ```
+
+To add commands, write a **pack** (see `plugin/core/commands/packs/` and
+`tests/adapter.test.mjs`, a worked example of an app-specific adapter), register it in
+`packs/index.mjs`, and add tests.
