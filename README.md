@@ -37,9 +37,35 @@ Commands are CLI-like: a command word followed by arguments, parsed left to righ
 | `space <n>` | focus workspace n |
 | `move focused space <n>` | move the focused window to workspace n and follow it (`packs.hyprland.moveFollows: false` to stay) |
 
+| `open <app>` | focus the app's window if one is open, otherwise launch it |
+| `focus <app>` | focus the app's window; just tells you if it isn't running |
+
 `<n>` is 1-10, as a digit or a number word. Synonyms: `workspace` for `space`, `send` for
 `move`, `focus`/`current` for `focused`. Free-form phrasing ("go to workspace 4", "move window
 to space 2") is deliberately not accepted.
+
+## App catalog
+
+`<app>` is an entry of `apps` in `~/.config/vocon/config.json`, spoken by its name or an alias.
+Built in: `terminal`, `browser`, `files`, `spotify`, `obsidian`. Add your own:
+
+```json
+"apps": {
+  "slack": {},
+  "visual studio code": { "match": "^code$", "launch": ["code"], "aliases": ["vs code"] },
+  "files": { "launch": ["thunar"] },
+  "obsidian": null
+}
+```
+
+- `match`: regex tested against the window **class** (case-insensitive, word-bounded, like
+  `omarchy-launch-or-focus`). Class only, so a browser tab titled "Slack" is not Slack. Default:
+  the name. Find classes with `hyprctl clients -j | jq -r '.[].class'`.
+- `launch`: argv run through `uwsm-app --` when no window matches. Default: the name (single-word
+  names only). It comes from config only; speech just selects an entry, it never becomes a command.
+- `aliases`: other spoken names. An entry overrides a built-in field by field; `null` removes one.
+- Invalid entries (bad regex, no launch command, a spoken name already taken) are reported when
+  the config loads and skipped; the rest keep working.
 
 Each word is resolved only against what is valid at that point, so commands can't collide:
 `move` can later gain `all` or `group` arguments (`move all space 2`, `move focused group dev`)
@@ -81,6 +107,6 @@ exec is an argv array.
 ## Tests
 
 ```sh
-node --test tests/interpretation.test.mjs tests/execution.test.mjs tests/config.test.mjs tests/session.test.mjs
+node --test tests/*.test.mjs
 QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input tests/qml/tst_core.qml
 ```

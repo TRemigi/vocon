@@ -22,7 +22,9 @@ Item {
       Quickshell.execDetached(["notify-send", "-a", "vocon", "-u", e.urgency, e.title, e.body])
     },
     "log":                function(e) { console.log("vocon: " + e.message) },
-    "exec":               function(e) { Quickshell.execDetached(e.argv) }
+    "exec":               function(e) { Quickshell.execDetached(e.argv) },
+    // Same launch path as Omarchy's own bindings (uwsm-app); argv is from the app catalog.
+    "app.launch":         function(e) { Quickshell.execDetached(["setsid", "uwsm-app", "--"].concat(e.argv)) }
   })
 
   function execute(effect) {

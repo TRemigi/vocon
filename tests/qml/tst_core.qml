@@ -32,6 +32,20 @@ TestCase {
     compare(r.actions[0].workspace, 2)
   }
 
+  function test_pipeline_open_app_focuses_or_launches() {
+    var cfg = Config.parse('{"apps":{"slack":{}}}').config
+    var running = [{ address: "0xabc", "class": "slack", title: "x", mapped: true }]
+
+    var focus = Pipeline.interpret(cfg, { clients: running }, "Open Slack.")
+    compare(focus.outcome.kind, "matched")
+    compare(focus.actions[0].type, "hypr.focusWindow")
+    compare(focus.actions[0].address, "0xabc")
+
+    var launch = Pipeline.interpret(cfg, { clients: [] }, "Open Slack.")
+    compare(launch.actions[0].type, "app.launch")
+    compare(launch.actions[0].argv[0], "slack")
+  }
+
   function test_hyprctl_argv() {
     var argv = Hyprctl.toArgv({ type: "hypr.focusWorkspace", workspace: 2 })
     compare(argv[0], "hyprctl")

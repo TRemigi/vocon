@@ -21,3 +21,8 @@ export function exec(argv) {
 export function notify(title, body, urgency) {
   return { type: "notify", title: title, body: body || "", urgency: urgency || "normal" };
 }
+
+// Start an app. argv comes from the app catalog (config), never from speech.
+export function launch(argv) {
+  return { type: "app.launch", argv: argv };
+}
