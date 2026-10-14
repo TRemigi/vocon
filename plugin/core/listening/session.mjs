@@ -87,11 +87,33 @@ function completeDictation(state) {
   return end([typeText(heard), log("dictation: typed " + heard.length + " characters")]);
 }
 
+// "Dictate, Hi team." -> "Hi team." The command word is always the first word, so drop the first
+// run of letters/digits (what `normalize` calls a token) and the separator after it.
+function afterCommandWord(transcript) {
+  return transcript.replace(/^[^a-z0-9]*[a-z0-9]+[\s,.:;!?]*/i, "").trim();
+}
+
+// `dictate <text>`: type <text> now, without a second key press. It goes through the same checks as an
+// armed dictation (ignore list, "cancel", focus), and stays armed with its timer if nothing was typed.
+function dictateInline(state) {
+  var focused = activeWindow(state.clients);
+  var done = completeDictation(Object.assign({}, state, {
+    transcript: afterCommandWord(state.transcript),
+    dictation: { address: focused ? focused.address : null },
+  }));
+  if (!done.state.dictation) return done;
+  return result(done.state, done.effects.concat([{ type: "dictation.timer.arm", ms: state.config.dictation.armSeconds * 1000 }]));
+}
+
 // Both inputs are in: interpret and hand back the command's actions.
 function complete(state) {
   if (state.dictation) return completeDictation(state);
   var interpreted = interpret(state.config, { clients: state.clients }, state.transcript);
   var outcome = interpreted.outcome;
+  // Dictated text is message content: skip the "heard ..." log and success notification below.
+  if (outcome.kind === "matched" && interpreted.actions.some(function (a) { return a.type === "dictation.arm" && a.inline; })) {
+    return dictateInline(state);
+  }
   var feedback = state.config.feedback;
   var effects = [{ type: "watchdog.disarm" }, log("heard \"" + state.transcript + "\" -> " + outcome.kind +
     (outcome.commandId ? " " + outcome.commandId + " (score " + outcome.score.toFixed(2) + ")" : ""))];

@@ -111,3 +111,53 @@ test("dictation config is validated", () => {
   const custom = parse('{"dictation":{"ignore":["Okay.","Bye!"]}}').config.dictation.ignore;
   assert.deepEqual(custom, ["okay", "bye"]);
 });
+
+// --- inline: "dictate <text>" types straight away, without a second key press ---
+
+const typedText = (effects) => effects.filter((e) => e.type === "text.type").map((e) => e.text);
+
+test("'dictate <text>' types the text without the command word and without arming", () => {
+  for (const [said, typed] of [
+    ["Dictate hey team, space 2 is ready.", "hey team, space 2 is ready."],
+    ["Dictate, Hi team.", "Hi team."],
+    ["dictate: ship it", "ship it"],
+    ["  Dictate   (note) fine ", "(note) fine"],
+  ]) {
+    const r = utter(initialState(), said);
+    assert.deepEqual(typedText(r.effects), [typed], said);
+    assert.equal(r.state.dictation, null, said);
+    assert.equal(r.state.phase, "idle", said);
+    assert.ok(!types(r.effects).includes("dictation.arm"), said);
+    assert.ok(!types(r.effects).includes("hypr.focusWorkspace"), said); // not interpreted as a command
+  }
+});
+
+test("inline dictation keeps the other safeguards", () => {
+  assert.deepEqual(typedText(utter(initialState(), "dictate cancel").effects), []);
+  assert.deepEqual(typedText(utter(initialState(), "dictate you").effects), []);
+  const kept = utter(initialState(), "dictate thanks for watching");
+  assert.deepEqual(kept.state.dictation, { address: "0x1" }); // ignored text keeps it armed...
+  assert.ok(types(kept.effects).includes("dictation.timer.arm")); // ...with its expiry timer
+});
+
+test("inline dictation never logs or notifies the dictated text", () => {
+  const r = utter(initialState(), "dictate my secret message");
+  assert.deepEqual(typedText(r.effects), ["my secret message"]);
+  const visible = r.effects.filter((e) => e.type === "log" || e.type === "notify").map((e) => JSON.stringify(e)).join(" ");
+  assert.ok(!visible.includes("secret"));
+  const loud = utter(initialState(), "dictate my secret message", slackFocused).effects; // feedback.notifyOnSuccess must not echo it
+  assert.ok(!loud.some((e) => e.type === "notify" && JSON.stringify(e).includes("secret")));
+});
+
+test("bare 'dictate' still arms for the next press", () => {
+  const r = utter(initialState(), "dictate");
+  assert.deepEqual(r.state.dictation, { address: "0x1" });
+  assert.deepEqual(typedText(r.effects), []);
+});
+
+test("the dictation pack alone supplies the slot, and can be disabled", () => {
+  const off = parse('{"packs":{"slack":{"enabled":false}}}').config;
+  assert.deepEqual(typedText(utter(initialState(off), "dictate hello there").effects), ["hello there"]);
+  const none = parse('{"packs":{"dictation":{"enabled":false}}}').config;
+  assert.deepEqual(typedText(utter(initialState(none), "dictate hello there").effects), []);
+});

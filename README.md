@@ -11,7 +11,7 @@ hold F10:   "space 2"                        ->  workspace 2 is focused
 hold F10:   "move focused space 1"           ->  the focused window moves to workspace 1
 hold F10:   "open slack"                     ->  Slack is focused, or started if it isn't running
 hold F10:   "slack channel dev platform"     ->  jumps to #dev-platform in Slack
-hold F10:   "dictate"   then   "Hi team..."  ->  your next utterance is typed into the focused window
+hold F10:   "dictate Hi team..."             ->  "Hi team..." is typed into the focused window
 ```
 
 Commands are CLI-like (`move focused space 1`), not free-form sentences, so they are predictable,
@@ -205,20 +205,23 @@ second one, add a command (see [custom commands](#custom-commands)).
 
 | Say | Does |
 |---|---|
-| `dictate` | the **next** time you hold the key, your speech is typed into the focused window instead of being treated as a command |
+| `dictate <text>` | types `<text>` into the focused window right away, in the same utterance. The word `dictate` itself is not typed |
+| `dictate` (alone) | the **next** time you hold the key, your speech is typed into the focused window instead of being treated as a command |
 | `cancel` (as the dictated phrase) | cancels dictation |
 
 Dictation is deliberately constrained so words can't land somewhere unintended:
 
 - It is **single-shot**: after one utterance is typed, vocon goes back to commands.
+- `dictate <text>` is typed as you said it (capitalisation and punctuation kept). Like all dictated
+  text it is never logged or shown in a notification.
 - It **expires** after 30 seconds (`dictation.armSeconds`).
 - It is **discarded if the focused window changes** between saying `dictate` and speaking.
 - Things Whisper makes up from silence ("Thank you for watching") are never typed
   (`dictation.ignore`).
 - Recordings can run up to 60 seconds (`dictation.maxSeconds`).
 
-Typical use in a chat app: focus the message box, hold the key and say "dictate", release, hold the
-key again and say your message, release, then say `send` (in Slack) or press Enter.
+Typical use in a chat app: focus the message box, hold the key and say "dictate hi team, standup is
+moved to ten", release, then say `send` (in Slack) or press Enter.
 
 ### Slack
 

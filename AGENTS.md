@@ -254,6 +254,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | Slack: scoped short forms + `slack …` navigation-only form | Hands-free from anywhere, but sending/deleting only on a window the user is looking at. |
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |
 | Dropped `send` as a synonym of `move` | Collided with Slack's `send`. |
+| `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |
 
 ## Known limitations and backlog
 
