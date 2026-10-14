@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "vocon",
+  "name": "vocon",
+  "version": "0.1.0",
+  "description": "Push-to-talk voice commands: speak a command, vocon matches it and drives Hyprland and Omarchy.",
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": { "service": "Service.qml" }
+}

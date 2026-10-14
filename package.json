@@ -1,0 +1,11 @@
+{
+  "name": "vocon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Push-to-talk voice commands for the Omarchy 4 shell",
+  "scripts": {
+    "test": "node --test tests/",
+    "test:qml": "/usr/lib/qt6/bin/qmltestrunner -input tests/qml"
+  }
+}

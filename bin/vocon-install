@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Install (copy) the vocon plugin into Omarchy, enable it in shell.json and seed a config.
+# Omarchy rejects symlinked plugin folders, so this copies. Safe to re-run.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="$ROOT/plugin"
+PLUGIN_ID="vocon"
+DEST="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
+SHELL_JSON="$HOME/.config/omarchy/shell.json"
+CONFIG_DIR="$HOME/.config/vocon"
+
+command -v jq >/dev/null || { echo "ERROR: jq is required" >&2; exit 2; }
+[ -f "$SHELL_JSON" ] || { echo "ERROR: $SHELL_JSON not found" >&2; exit 2; }
+
+omarchy plugin validate "$SRC" >/dev/null
+
+# Stage next to the plugins dir (not inside it, which the shell watches), then swap.
+STAGE="$(mktemp -d "$HOME/.config/omarchy/.vocon-install.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
+cp -r "$SRC/." "$STAGE/"
+mkdir -p "$(dirname "$DEST")"
+rm -rf "$DEST"
+mv "$STAGE" "$DEST"
+trap - EXIT
+echo "installed: $DEST"
+
+# plugins[] entries are objects ({"id": ...}); a third-party plugin is enabled iff listed.
+if jq -e --arg id "$PLUGIN_ID" '[(.plugins // [])[] | objects | select(.id == $id)] | length > 0' "$SHELL_JSON" >/dev/null; then
+  echo "already enabled in shell.json"
+else
+  cp "$SHELL_JSON" "$SHELL_JSON.bak.$(date +%s)"
+  jq --arg id "$PLUGIN_ID" '.plugins = ([(.plugins // [])[] | select(. != $id)] + [{id: $id}])' "$SHELL_JSON" > "$SHELL_JSON.tmp"
+  mv "$SHELL_JSON.tmp" "$SHELL_JSON"
+  echo "enabled in shell.json"
+fi
+
+if [ ! -f "$CONFIG_DIR/config.json" ]; then
+  mkdir -p "$CONFIG_DIR"
+  cp "$ROOT/config/config.example.json" "$CONFIG_DIR/config.json"
+  echo "seeded $CONFIG_DIR/config.json"
+fi
+
+omarchy-shell -q shell rescanPlugins || true
+omarchy plugin validate "$DEST"

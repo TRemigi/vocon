@@ -1,0 +1,42 @@
+import QtQuick
+import QtTest
+import "../../plugin/core/pipeline.mjs" as Pipeline
+import "../../plugin/core/listening/session.mjs" as Session
+import "../../plugin/core/execution/hyprctl.mjs" as Hyprctl
+import "../../plugin/core/config.mjs" as Config
+
+// Loads the real core under Qt's V4 engine: catches syntax/import forms V4 rejects.
+TestCase {
+  name: "core under QML"
+
+  function test_pipeline_space_one() {
+    var r = Pipeline.interpret(Config.defaults, { clients: [] }, "Space 1.")
+    compare(r.outcome.kind, "matched")
+    compare(r.actions.length, 1)
+    compare(r.actions[0].type, "hypr.focusWorkspace")
+    compare(r.actions[0].workspace, 1)
+  }
+
+  function test_hyprctl_argv() {
+    var argv = Hyprctl.toArgv({ type: "hypr.focusWorkspace", workspace: 2 })
+    compare(argv[0], "hyprctl")
+    compare(argv[2], 'hl.dsp.focus({ workspace = "2" })')
+  }
+
+  function test_session_flow() {
+    var s = Session.initialState()
+    var steps = [{ type: "PttPressed" }, { type: "PttReleased" },
+                 { type: "TranscriptReceived", text: "space three" },
+                 { type: "ClientsSnapshot", clients: [] }]
+    var effects = []
+    for (var i = 0; i < steps.length; i++) {
+      var r = Session.reduce(s, steps[i])
+      s = r.state
+      effects = effects.concat(r.effects)
+    }
+    compare(s.phase, "idle")
+    var focus = effects.filter(function (e) { return e.type === "hypr.focusWorkspace" })
+    compare(focus.length, 1)
+    compare(focus[0].workspace, 3)
+  }
+}

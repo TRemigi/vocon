@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Write the push-to-talk binding into ~/.config/hypr/bindings.lua from pushToTalk.key
+# in ~/.config/vocon/config.json (default F10). Backs up first, rolls back if Hyprland
+# reports config errors. Re-run after changing the key.
+set -euo pipefail
+
+CONFIG="$HOME/.config/vocon/config.json"
+FILE="$HOME/.config/hypr/bindings.lua"
+BEGIN='-- vocon:begin'
+END='-- vocon:end'
+
+KEY="${1:-}"
+if [ -z "$KEY" ] && [ -f "$CONFIG" ]; then
+  KEY="$(jq -r '.pushToTalk.key // empty' "$CONFIG")"
+fi
+KEY="${KEY:-F10}"
+
+# The key ends up inside a Lua string: allow only plain key names and "+" combos.
+if ! [[ "$KEY" =~ ^[A-Za-z0-9_+\ ]+$ ]]; then
+  echo "ERROR: unsupported key '$KEY' (letters, digits, '_', '+' and spaces only)" >&2
+  exit 2
+fi
+[ -f "$FILE" ] || { echo "ERROR: $FILE not found" >&2; exit 2; }
+
+BACKUP="$FILE.bak.$(date +%s)"
+cp "$FILE" "$BACKUP"
+
+awk -v b="$BEGIN" -v e="$END" '
+  $0 == b { skip = 1; next }
+  $0 == e { skip = 0; next }
+  !skip { print }
+' "$FILE" > "$FILE.tmp"
+
+{
+  cat "$FILE.tmp"
+  printf '%s\n' "$BEGIN"
+  printf 'o.bind("%s", "vocon: push-to-talk start", "omarchy-shell -q vocon start")\n' "$KEY"
+  printf 'o.bind("%s", "vocon: push-to-talk stop", "omarchy-shell -q vocon stop", { release = true })\n' "$KEY"
+  printf '%s\n' "$END"
+} > "$FILE"
+rm -f "$FILE.tmp"
+
+hyprctl reload >/dev/null
+ERRS="$(hyprctl configerrors)"
+if [ -n "$ERRS" ]; then
+  cp "$BACKUP" "$FILE"
+  hyprctl reload >/dev/null
+  echo "ERROR: $ERRS (rolled back)" >&2
+  exit 1
+fi
+echo "OK: hold $KEY to talk"

@@ -1,0 +1,7 @@
+{
+  "pushToTalk": { "key": "F10" },
+  "voxtype": { "showOsd": true, "maxSeconds": 15 },
+  "matching": { "threshold": 0.8 },
+  "feedback": { "notifyOnNoMatch": true, "notifyOnSuccess": false },
+  "packs": { "hyprland": { "workspaces": 10 } }
+}
