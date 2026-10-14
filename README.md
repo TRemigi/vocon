@@ -195,6 +195,8 @@ workaround), so the example uses `exec`.
 
 ## Design
 
+The constraints and the reasoning behind them are in [`AGENTS.md`](AGENTS.md); read it before changing code.
+
 Functional core, imperative shell. Everything under `plugin/core/` is pure ES modules (no Qt,
 no I/O), loaded by QML and by `node --test`; `plugin/Service.qml` + `plugin/infra/` are the
 only code with side effects. The core is split by bounded context:
