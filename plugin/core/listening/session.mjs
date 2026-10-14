@@ -77,10 +77,18 @@ function maybeComplete(state) {
 export function reduce(state, event) {
   switch (event.type) {
     case "ConfigLoaded": {
+      // A file that can't be used at all must not wipe the working config.
+      if (event.ok === false) {
+        var why = (event.errors || []).join("; ");
+        return result(state, [
+          notify("vocon config not loaded", why + " \u2014 keeping the previous config", "normal"),
+          log("config rejected: " + why),
+        ]);
+      }
       var problems = (event.errors || []).concat(registryErrors(event.config));
       var effects = problems.length
-        ? [notify("vocon config problems", problems.join("; "), "normal")]
-        : [];
+        ? [notify("vocon config problems", problems.join("; "), "normal"), log("config problems: " + problems.join("; "))]
+        : [log("config loaded")];
       return result(Object.assign({}, state, { config: event.config }), effects);
     }
 

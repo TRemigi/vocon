@@ -1,5 +1,7 @@
 // Config: defaults, parsing and validation. Pure; ES2017-conservative.
-// parse(text) -> { config, errors }. Invalid parts fall back to defaults and are reported.
+// parse(text) -> { config, errors, ok }. Invalid parts fall back to defaults and are reported;
+// ok is false only when the text couldn't be used at all (bad JSON, not an object), so callers
+// can keep the last good config instead of resetting to defaults.
 
 import { normalize } from "./interpretation/utterance.mjs";
 import { isValidPattern } from "./execution/windows.mjs";
@@ -10,7 +12,12 @@ export var defaults = {
   // aliases: spoken word -> extra words the recogniser commonly produces for it.
   matching: { threshold: 0.8, aliases: { space: ["pace", "base", "spice"], move: ["moved", "moves"] } },
   feedback: { notifyOnNoMatch: true, notifyOnSuccess: false },
-  packs: { hyprland: {}, apps: {} },
+  packs: { hyprland: {}, apps: {}, custom: {} },
+  // Your own commands, each one a path in the same command tree as the built-ins:
+  //   { "say": "lock screen", "exec": ["omarchy-system-lock"] }          run a command
+  //   { "say": "notes", "launch": ["obsidian"] }                         start an app (uwsm-app)
+  //   { ..., "when": { "activeClass": "^firefox$" } }                    only while that app is focused
+  commands: [],
   // App catalog for `open <app>` / `focus <app>`. Key = spoken name.
   //   match    regex tested (word-bounded, case-insensitive) against the window class
   //   launch   argv started via `uwsm-app --` when no window matches
@@ -108,6 +115,39 @@ function validateApps(apps, errors) {
   return clean;
 }
 
+// Custom commands: keep the valid ones as { say, type: "exec"|"launch", argv, activeClass }.
+function validateCommands(raw, errors) {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    errors.push("commands must be an array");
+    return [];
+  }
+  var clean = [];
+  raw.forEach(function (entry, i) {
+    var where = "commands[" + i + "]";
+    if (!isObject(entry)) { errors.push(where + " must be an object"); return; }
+
+    var words = typeof entry.say === "string" ? normalize(entry.say) : [];
+    if (words.length === 0) { errors.push(where + ".say must contain at least one word"); return; }
+
+    var kinds = ["exec", "launch"].filter(function (k) { return entry[k] !== undefined; });
+    if (kinds.length !== 1) { errors.push(where + " needs exactly one of exec or launch"); return; }
+    var argv = entry[kinds[0]];
+    if (!isWords(argv) || argv.length === 0) {
+      errors.push(where + "." + kinds[0] + " must be a non-empty array of strings");
+      return;
+    }
+
+    var when = entry.when;
+    if (when !== undefined && (!isObject(when) || typeof when.activeClass !== "string" || !isValidPattern(when.activeClass))) {
+      errors.push(where + ".when must be { \"activeClass\": <valid regular expression> }");
+      return;
+    }
+    clean.push({ say: words.join(" "), type: kinds[0], argv: argv, activeClass: when ? when.activeClass : null });
+  });
+  return clean;
+}
+
 function checkRanges(config, errors) {
   var fixed = config;
   if (!(config.voxtype.maxSeconds >= 1 && config.voxtype.maxSeconds <= 120)) {
@@ -140,7 +180,7 @@ function checkRanges(config, errors) {
 
 export function fromObject(raw) {
   var errors = [];
-  if (!isObject(raw)) return { config: defaults, errors: ["config must be a JSON object"] };
+  if (!isObject(raw)) return { config: defaults, errors: ["config must be a JSON object"], ok: false };
 
   var merged = {
     pushToTalk: mergeSection(defaults.pushToTalk, raw.pushToTalk, errors, "pushToTalk"),
@@ -149,9 +189,10 @@ export function fromObject(raw) {
     feedback: mergeSection(defaults.feedback, raw.feedback, errors, "feedback"),
     packs: isObject(raw.packs) ? Object.assign({}, defaults.packs, raw.packs) : defaults.packs,
     apps: validateApps(mergeApps(defaults.apps, raw.apps, errors), errors),
+    commands: validateCommands(raw.commands, errors),
   };
   if (raw.packs !== undefined && !isObject(raw.packs)) errors.push("packs must be an object");
-  return { config: checkRanges(merged, errors), errors: errors };
+  return { config: checkRanges(merged, errors), errors: errors, ok: true };
 }
 
 export function parse(text) {
@@ -159,7 +200,7 @@ export function parse(text) {
   try {
     raw = JSON.parse(text);
   } catch (e) {
-    return { config: defaults, errors: ["invalid JSON: " + e.message] };
+    return { config: defaults, errors: ["invalid JSON: " + e.message], ok: false };
   }
   return fromObject(raw);
 }

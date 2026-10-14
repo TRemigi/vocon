@@ -76,6 +76,64 @@ Mishearings are handled per word, not per phrase: near-misses of longer words (s
 `matching.threshold`) and `matching.aliases` (command word -> words the recogniser tends to
 produce, e.g. `"space": ["pace", "base"]`). A list you set for a word replaces its default list.
 
+## Custom commands
+
+Add your own commands in `~/.config/vocon/config.json`; they join the same command tree as the
+built-ins and reload on save:
+
+```json
+"commands": [
+  { "say": "lock screen", "exec": ["omarchy-system-lock"] },
+  { "say": "notes", "launch": ["obsidian"] },
+  { "say": "tab next", "exec": ["my-script", "next"], "when": { "activeClass": "^firefox$" } }
+]
+```
+
+A larger, tested set is in `config/custom-commands.example.json`: system toggles, volume and
+brightness, launch variants, and per-app commands (browser tabs, Spotify, Slack, Obsidian) that
+send each app its own shortcut with `wtype`. Copy the entries you want into your `commands` list.
+
+- `say`: the words to speak (each word is one level of the tree, so `lock` then `screen`).
+- `exec`: an argv array run directly (no shell). `launch`: an argv array started via `uwsm-app --`.
+  Exactly one of the two. Argv comes from config only; speech just selects the command.
+- `when.activeClass`: regex on the focused window's class; the command exists only while that
+  app is focused, so the same words can mean different things in different apps.
+- Commands sharing a first word merge (`lock screen`, `lock session`), and a command can extend a
+  built-in one (`move all`). A keyword you define beats a value argument (`open notes` beats
+  `open <app>`). Defining the same words twice is reported and the first definition wins.
+- A pack can be switched off with `"packs": { "apps": { "enabled": false } }` (also `hyprland`,
+  `custom`).
+
+A config file that can't be used at all (bad JSON) is rejected with a notification and the last
+good config stays active. Problems inside an otherwise valid file (a bad entry, a pack conflict)
+are reported and just that entry is skipped.
+
+## Writing a pack (app adapters)
+
+A pack is a small module: `{ id, commands(config) -> [root nodes], slotTypes?(config) }`, listed in
+`plugin/core/commands/packs/index.mjs`. An app adapter is a pack whose root nodes carry a `when`,
+so its commands exist only while that app is focused (`tests/adapter.test.mjs` is the worked
+example, with tests):
+
+```js
+const whenFirefox = (ctx) => classMatches(ctx.active, "^firefox$");   // ctx.active = focused window
+
+export const firefoxAdapter = {
+  id: "firefox",
+  commands: () => [
+    command("tab", { when: whenFirefox }, [
+      keyword("next",     { run: () => [exec([...])] }),
+      keyword("previous", { words: ["back"], run: () => [exec([...])] }),
+    ]),
+  ],
+};
+```
+
+`run(args, ctx, path)` returns action descriptors, which the shell executes. Sending a keyboard
+shortcut to an app is the natural action for adapters; it isn't built yet (Hyprland's
+`send_shortcut` can leave keys stuck, see Omarchy's `default/hypr/bindings/clipboard.lua` for the
+workaround), so the example uses `exec`.
+
 ## Troubleshooting
 
 - Nothing happens on F10: `omarchy-shell vocon status`, then `qs log -p /usr/share/omarchy/shell | grep vocon:`.

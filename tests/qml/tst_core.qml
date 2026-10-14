@@ -46,6 +46,22 @@ TestCase {
     compare(launch.actions[0].argv[0], "slack")
   }
 
+  function test_custom_command_with_when() {
+    var cfg = Config.parse('{"commands":[{"say":"tab next","exec":["x"],"when":{"activeClass":"^firefox$"}}]}').config
+    var inFirefox = [{ address: "0x1", "class": "firefox", title: "", mapped: true, focusHistoryID: 0 }]
+    var inSlack = [{ address: "0x2", "class": "slack", title: "", mapped: true, focusHistoryID: 0 }]
+
+    var hit = Pipeline.interpret(cfg, { clients: inFirefox }, "Tab next.")
+    compare(hit.outcome.kind, "matched")
+    compare(hit.actions[0].type, "exec")
+    compare(Pipeline.interpret(cfg, { clients: inSlack }, "Tab next.").outcome.kind, "nomatch")
+  }
+
+  function test_unusable_config_is_flagged() {
+    compare(Config.parse("{nope").ok, false)
+    compare(Config.parse("{}").ok, true)
+  }
+
   function test_hyprctl_argv() {
     var argv = Hyprctl.toArgv({ type: "hypr.focusWorkspace", workspace: 2 })
     compare(argv[0], "hyprctl")

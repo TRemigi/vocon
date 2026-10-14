@@ -46,7 +46,7 @@ Item {
   }
 
   ConfigStore {
-    onLoaded: function(config, errors) { service.dispatch({ type: "ConfigLoaded", config: config, errors: errors }) }
+    onLoaded: function(config, errors, ok) { service.dispatch({ type: "ConfigLoaded", config: config, errors: errors, ok: ok }) }
   }
 
   IpcHandler {

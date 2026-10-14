@@ -4,6 +4,7 @@
 import { normalize } from "./interpretation/utterance.mjs";
 import { parse } from "./interpretation/parser.mjs";
 import { buildRegistry } from "./commands/registry.mjs";
+import { activeWindow } from "./execution/windows.mjs";
 import { builtinPacks } from "./commands/packs/index.mjs";
 
 // Problems in the assembled command tree (pack conflicts etc.); [] when healthy.
@@ -11,7 +12,8 @@ export function registryErrors(config, packs) {
   return buildRegistry(packs || builtinPacks, config).errors;
 }
 
-// ctx: { clients: [...], ... } read-only facts about the desktop at release time.
+// ctx: { clients: [...], ... } read-only facts about the desktop at release time; `active` (the
+// focused window) is derived from clients and is what `when(ctx)` conditions look at.
 // outcome.kind: "empty" | "matched" | "incomplete" | "nomatch" | "ambiguous"
 // (see interpretation/parser.mjs); matched outcomes carry commandId ("move focused space"),
 // args and score.
@@ -19,13 +21,14 @@ export function interpret(config, ctx, transcript, packs) {
   var tokens = normalize(transcript);
   if (tokens.length === 0) return { outcome: { kind: "empty" }, actions: [] };
 
+  var context = Object.assign({ active: activeWindow(ctx.clients) }, ctx);
   var registry = buildRegistry(packs || builtinPacks, config);
-  var result = parse(registry.roots, registry.slotTypes, tokens, ctx, config.matching);
+  var result = parse(registry.roots, registry.slotTypes, tokens, context, config.matching);
   if (result.kind !== "matched") {
     return { outcome: Object.assign({ tokens: tokens }, result), actions: [] };
   }
   return {
     outcome: { kind: "matched", commandId: result.path.join(" "), path: result.path, args: result.args, score: result.score },
-    actions: result.node.run(result.args, ctx, result.path),
+    actions: result.node.run(result.args, context, result.path),
   };
 }

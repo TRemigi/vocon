@@ -10,7 +10,7 @@
 // result: { kind: "matched", node, path, args, score }
 //       | { kind: "incomplete", path, expected }          ran out of words
 //       | { kind: "nomatch", path, at, token, expected }  a word isn't valid here
-//       | { kind: "ambiguous", path, at, candidates }     two sibling words fit one token equally
+//       | { kind: "ambiguous", path, at, candidates }     different sibling words fit one token equally
 // `expected` lists what would be valid next: keyword names and "<type>" for values.
 
 import { tokenScore, EXACT } from "./words.mjs";
@@ -27,8 +27,20 @@ function active(nodes, ctx) {
   return nodes.filter(function (n) { return !n.when || n.when(ctx); });
 }
 
+// What would be valid next, each word once (conditional nodes can repeat a name).
 function expectedOf(nodes) {
-  return nodes.map(describe);
+  return nodes.map(describe).filter(function (d, i, all) { return all.indexOf(d) === i; });
+}
+
+// Several active nodes with the same name (e.g. the same first word under different `when`
+// conditions) act as one node whose children are all of theirs; the next word decides.
+function joinSiblings(nodes) {
+  if (nodes.length === 1) return nodes[0];
+  var withRun = nodes.filter(function (n) { return n.run; })[0];
+  return Object.assign({}, nodes[0], {
+    children: nodes.reduce(function (all, n) { return all.concat(n.children || []); }, []),
+    run: withRun ? withRun.run : undefined,
+  });
 }
 
 // Resolve token i against sibling nodes: { kind: "ok", node, next, value? } | { kind: "ambiguous", candidates } | null
@@ -41,8 +53,9 @@ function resolve(siblings, slotTypes, tokens, i, opts) {
 
   if (scored.length > 0) {
     var close = scored.filter(function (s) { return scored[0].score - s.score < AMBIGUITY_MARGIN; });
-    if (close.length > 1) return { kind: "ambiguous", candidates: close.map(function (s) { return s.node.name; }) };
-    return { kind: "ok", node: scored[0].node, next: i + 1, score: scored[0].score };
+    var names = close.map(function (s) { return s.node.name; }).filter(function (n, k, all) { return all.indexOf(n) === k; });
+    if (names.length > 1) return { kind: "ambiguous", candidates: names };
+    return { kind: "ok", node: joinSiblings(close.map(function (s) { return s.node; })), next: i + 1, score: scored[0].score };
   }
 
   var valueNode = siblings.filter(function (n) { return n.kind === "value"; })[0];

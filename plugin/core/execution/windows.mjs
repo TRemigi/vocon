@@ -22,3 +22,15 @@ export function findWindow(clients, pattern) {
   });
   return found.length ? found[0] : null;
 }
+
+// Does this window's class match the pattern (same rules as findWindow)?
+export function classMatches(window, pattern) {
+  if (!window || !isValidPattern(pattern)) return false;
+  return new RegExp("\\b" + pattern + "\\b", "i").test(String(window["class"] || ""));
+}
+
+// The focused window (hyprctl marks it focusHistoryID 0), or null.
+export function activeWindow(clients) {
+  var focused = (clients || []).filter(function (c) { return c && c.mapped !== false && c.focusHistoryID === 0; });
+  return focused.length ? focused[0] : null;
+}

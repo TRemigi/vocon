@@ -92,5 +92,5 @@ test("ConfigLoaded swaps config and surfaces errors", () => {
   const { config, errors } = parse('{"matching":{"threshold":9}}');
   const { state, effects } = run(initialState(), { type: "ConfigLoaded", config, errors });
   assert.equal(state.config, config);
-  assert.deepEqual(types(effects), ["notify"]);
+  assert.deepEqual(types(effects), ["notify", "log"]);
 });
