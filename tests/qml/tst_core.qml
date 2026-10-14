@@ -61,6 +61,20 @@ TestCase {
     compare(Pipeline.interpret(cfg, { clients: inSlack }, "Tab next.").outcome.kind, "nomatch")
   }
 
+  function test_claude_pack_under_v4() {
+    var claude = [{ address: "0x1", "class": "com.anthropic.Claude", title: "", mapped: true, focusHistoryID: 0 }]
+    var terminal = [{ address: "0x2", "class": "com.mitchellh.ghostty", title: "", mapped: true, focusHistoryID: 0 },
+                    { address: "0x1", "class": "com.anthropic.Claude", title: "", mapped: true, focusHistoryID: 1 }]
+
+    var hit = Pipeline.interpret(Config.defaults, { clients: claude }, "Session next.")
+    compare(hit.outcome.kind, "matched")
+    compare(Keys.toArgv(hit.actions[0]).join(" "), "wtype -M ctrl -k Tab -m ctrl")
+
+    var far = Pipeline.interpret(Config.defaults, { clients: terminal }, "Claude settings.")
+    compare(far.actions[0].type, "hypr.focusWindow")
+    compare(Pipeline.interpret(Config.defaults, { clients: terminal }, "Close session.").outcome.kind, "nomatch")
+  }
+
   function test_slack_keys_and_dictation_under_v4() {
     var cfg = Config.defaults
     var slack = [{ address: "0x1", "class": "slack", title: "", mapped: true, focusHistoryID: 0 }]

@@ -265,6 +265,56 @@ is rejected. Deleting takes two spoken steps by design.
 - If Slack is slow to open its switcher, raise `packs.slack.switcherDelay` /
   `resultsDelay` (milliseconds).
 
+### Claude Desktop
+
+Claude Desktop is driven through its own keyboard shortcuts. The shortcuts come from the
+[Claude Code desktop docs](https://code.claude.com/docs/en/desktop) and from the application menu of
+the Linux build (checked against the installed app, not a third-party list). Say these **while
+Claude Desktop is focused**. The navigation commands (the first group) also work from any app when
+prefixed with `claude` (`claude session next`), which focuses Claude Desktop first.
+
+| Say | Does | Shortcut |
+|---|---|---|
+| `tab home` / `tab code` | switch to the Home / Code tab | Ctrl+K, type the name, Enter (the app has no tab shortcut) |
+| `session new` / `next` / `previous` | new session / cycle sessions | Ctrl+N / Ctrl+Tab / Ctrl+Shift+Tab |
+| `pane diff` / `terminal` | toggle that pane | Ctrl+Shift+D / Ctrl+\` |
+| `side chat` | open a side chat | Ctrl+; |
+| `menu model` / `permission` / `effort` | open that menu | Ctrl+Shift+I / Ctrl+Shift+M / Ctrl+Shift+E |
+| `view` | cycle view modes | Ctrl+O |
+| `palette` (or `search`) | command palette | Ctrl+K |
+| `settings`, `sidebar`, `shortcuts` | settings, toggle sidebar, show the shortcut list | Ctrl+, / Ctrl+B / Ctrl+/ |
+| `find` / `find next` / `find previous` | find in the page | Ctrl+F / Ctrl+G / Ctrl+Shift+G |
+| `zoom in` / `out` / `reset` | zoom | Ctrl+= / Ctrl+- / Ctrl+0 |
+| `fullscreen` (or `full screen`) | toggle full screen | F11 |
+| `close session` / `close pane` | close the session / the focused pane | Ctrl+W / Ctrl+\\ |
+| `reopen` | reopen the last closed session | Ctrl+Shift+T |
+| `stop` | stop Claude's response | Esc |
+| `send` | send the prompt | Enter |
+| `newline` | add a line in the prompt | Shift+Enter |
+| `accept` | accept the suggested prompt (empty prompt box) | Tab |
+| `choose <item>` | pick item 1-9 of an open menu (`menu model`, then `choose 2`) | 1-9 |
+| `undo`, `redo` | edit history | Ctrl+Z / Ctrl+Shift+Z |
+| `cut`, `copy`, `paste`, `select all` | clipboard and selection | Ctrl+X / C / V / A |
+
+**Safety:** everything that acts on a session or the prompt (`close`, `reopen`, `stop`, `send`,
+`newline`, `accept`, `choose` and the edit keys) exists **only while Claude Desktop is the focused
+window**. `claude send` from another app is rejected. Pair `dictate <text>` with `send` to speak a
+prompt and submit it.
+
+**Limits:**
+
+- Pane toggles, `view` and the menus act on the **Code tab**; in the chat tab they do nothing.
+  There is no command for the Browser pane (Ctrl+Shift+B), since it doesn't apply to this setup.
+- `choose` presses a digit; with no menu open the digit is typed into the prompt.
+- `newline` (Shift+Enter) is not in the official shortcut table; it's the standard chat convention.
+- The docs list no shortcut to focus the prompt box, so there is no command for it.
+- `tab` goes through the command palette and presses Enter on its first result. That `code` gives
+  the Code tab was confirmed by hand; `home` was not. If the palette is slow, raise
+  `packs.claude.paletteDelay` / `resultsDelay`.
+- If Claude Desktop is slow to take focus, raise `packs.claude.focusDelay` (milliseconds).
+- Shortcuts that don't pass through the window (such as a global quick-entry hotkey) can't be
+  sent by vocon.
+
 ### Custom commands
 
 Add your own in the `commands` list of `~/.config/vocon/config.json`. They reload when you save.
@@ -342,7 +392,7 @@ conflict) are reported and only that entry is skipped.
 | `matching.aliases` | `space: [pace, base, spice]`, `move: [moved, moves]` | Words the recogniser tends to produce for a command word. A list you set for a word **replaces** its default list. |
 | `feedback.notifyOnNoMatch` | `true` | Notify when a command isn't understood. |
 | `feedback.notifyOnSuccess` | `false` | Notify with the transcript on every successful command. |
-| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `slack`, `dictation`, `custom`. |
+| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `slack`, `claude`, `dictation`, `custom`. |
 | `packs.hyprland.workspaces` | `10` | Highest workspace number you can say. |
 | `packs.hyprland.moveFollows` | `true` | Whether `move focused space n` also switches to that workspace. |
 | `packs.slack.match` | `"^slack$"` | Regex for the Slack window class. |
@@ -350,6 +400,11 @@ conflict) are reported and only that entry is skipped.
 | `packs.slack.focusDelay` | `300` | ms to let Slack take focus (the `slack ...` form). |
 | `packs.slack.switcherDelay` | `350` | ms for Slack's quick switcher to open before typing. |
 | `packs.slack.resultsDelay` | `450` | ms for its results to settle before Enter. |
+| `packs.claude.match` | `"^com.anthropic.Claude$"` | Regex for the Claude Desktop window class. |
+| `packs.claude.send` | `"Return"` | Key `send` presses (`"ctrl+Return"` for Ctrl+Enter). |
+| `packs.claude.focusDelay` | `300` | ms to let Claude Desktop take focus (the `claude ...` form). |
+| `packs.claude.paletteDelay` | `350` | ms for the command palette to open before `tab` types. |
+| `packs.claude.resultsDelay` | `450` | ms for its results to settle before Enter. |
 | `dictation.armSeconds` | `30` | How long `dictate` stays armed (5-300). |
 | `dictation.maxSeconds` | `60` | Longest dictation recording (5-120). |
 | `dictation.ignore` | `["thank you for watching", "thanks for watching", "you"]` | Whole utterances never typed (Whisper often invents these from silence). |

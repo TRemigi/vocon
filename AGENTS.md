@@ -120,7 +120,7 @@ phrases. Example: `move focused space 1` = `move` → `focused` → `space` → 
 
 A **pack** is `{ id, commands(config) -> [root nodes], slotTypes?(config) -> { name: slotType } }`,
 registered in `plugin/core/commands/packs/index.mjs`. It is active unless
-`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `slack`, `dictation`, `custom`.
+`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `slack`, `claude`, `dictation`, `custom`.
 
 - **App adapters** are packs whose root nodes carry `when(ctx)`; `ctx.active` is the focused
   window (derived from `hyprctl clients` `focusHistoryID === 0`), `ctx.clients` all windows.
@@ -254,6 +254,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | Slack: scoped short forms + `slack …` navigation-only form | Hands-free from anywhere, but sending/deleting only on a window the user is looking at. |
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |
 | Dropped `send` as a synonym of `move` | Collided with Slack's `send`. |
+| Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. |
 | `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |
 
 ## Known limitations and backlog

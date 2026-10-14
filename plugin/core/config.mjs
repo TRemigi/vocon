@@ -10,9 +10,9 @@ export var defaults = {
   pushToTalk: { key: "F10" },
   voxtype: { model: null, showOsd: true, maxSeconds: 15, transcribeTimeoutSeconds: 20 },
   // aliases: spoken word -> extra words the recogniser commonly produces for it.
-  matching: { threshold: 0.8, aliases: { space: ["pace", "base", "spice"], move: ["moved", "moves"] } },
+  matching: { threshold: 0.8, aliases: { space: ["pace", "base", "spice"], move: ["moved", "moves"], claude: ["cloud", "clod"] } },
   feedback: { notifyOnNoMatch: true, notifyOnSuccess: false },
-  packs: { hyprland: {}, apps: {}, slack: {}, dictation: {}, custom: {} },
+  packs: { hyprland: {}, apps: {}, slack: {}, claude: {}, dictation: {}, custom: {} },
   // `dictate` types your next utterance into the focused window. armSeconds: how long it stays
   // armed; maxSeconds: longest dictation; ignore: whole utterances never typed (Whisper often
   // invents these from silence).

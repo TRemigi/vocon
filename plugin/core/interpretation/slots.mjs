@@ -13,10 +13,10 @@ export function parseNumberToken(token) {
   return Object.prototype.hasOwnProperty.call(NUMBER_WORDS, token) ? NUMBER_WORDS[token] : null;
 }
 
-// A workspace number 1..max, spoken as a digit or a number word.
-export function workspaceSlot(max) {
+// A number 1..max, spoken as a digit or a number word; `noun` names it in hints.
+export function numberSlot(max, noun) {
   return {
-    hint: "workspace number, 1-" + max,
+    hint: noun + ", 1-" + max,
     parse: function (tokens, index) {
       if (index >= tokens.length) return [];
       var n = parseNumberToken(tokens[index]);
@@ -24,6 +24,11 @@ export function workspaceSlot(max) {
       return [{ value: n, next: index + 1 }];
     },
   };
+}
+
+// A workspace number 1..max.
+export function workspaceSlot(max) {
+  return numberSlot(max, "workspace number");
 }
 
 // An app from the catalog, spoken by name or alias. A name may be several words
