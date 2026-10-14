@@ -176,7 +176,15 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
   switch), clipping the first word ("space" → "pace"/"base"). Record from another mic; keep the
   headset for output. This is why accuracy problems are usually audio, not the model.
 - Whisper hallucinates on silence ("Thank you for watching!"). `base.en` is the smallest model;
-  `whisper.initial_prompt` biases vocabulary; GPU/VAD (`voxtype setup gpu|vad`) are untried.
+  `whisper.initial_prompt` biases vocabulary; VAD (`voxtype setup vad`) is untried.
+- **Latency is VoxType's transcription step, not vocon** (vocon's own path is ~50 ms: IPC ~30 ms,
+  parse ~5 ms, `hyprctl` ~7 ms). Measured on a Ryzen/Radeon 680M laptop: Whisper `base.en` CPU
+  ~0.85 s regardless of clip length (fixed 30 s window), Whisper Vulkan ~0.2-0.6 s, Parakeet
+  (`parakeet-tdt-0.6b-v2-int8`, ONNX AVX2 CPU) ~0.08-0.14 s. Engine choice stays user config.
+- **Non-Whisper engines are a separate binary** (the package ships both; switch the active one).
+  With `engine = "parakeet"` and no `[parakeet]` model set, the daemon exits on start (crash loop),
+  which vocon surfaces as "VoxType isn't running"; check `journalctl --user -u voxtype`.
+  Parakeet's streaming mode forces toggle activation, so it does not fit hold-to-talk.
 
 **Hyprland 0.56 (Lua config)**
 - Dispatch with Lua expressions: `hyprctl dispatch 'hl.dsp.focus({ workspace = "1" })'`,
@@ -253,5 +261,6 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 - Custom commands have no typed arguments yet (`say: "volume <n>"`); only packs do.
 - No automatic re-run of `vocon-keybind` when `pushToTalk.key` changes (re-run it by hand).
 - Ideas not built: installed-app discovery from desktop entries; a score that reflects in-slot
-  fuzziness; `whisper.initial_prompt` with the command vocabulary; `small.en`/GPU/VAD tuning;
+  fuzziness; `whisper.initial_prompt` with the command vocabulary; VAD tuning; Parakeet accuracy on command
+  words (output formatting differs; aliases may need retuning);
   a real per-app shortcut adapter for browsers/Spotify beyond the `custom-commands` examples.

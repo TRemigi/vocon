@@ -155,7 +155,8 @@ Hold F10, wait a beat, say **"space 2"**, release. Workspace 2 should focus. The
 ## Using vocon
 
 **The basic gesture:** hold the key, wait about half a second for VoxType to start capturing, speak
-the command, release. Recognition takes a second or two on CPU (faster with a GPU or a smaller model).
+the command, release. How long recognition takes depends on VoxType's engine, from about a second
+on a CPU-only Whisper setup to a fraction of a second; see [Performance](#performance).
 
 **Speak commands in order, without filler.** `move focused space 1`, not "please move the focused
 window to space one". Numbers can be digits or words ("space 3" / "space three"). Words that sound
@@ -382,6 +383,61 @@ Most misrecognition is audio, not the model. In rough order of payoff:
    to start capturing.
 7. **Voice-activity detection** (`voxtype setup vad`) can reduce phantom text from silence.
 
+## Performance
+
+When a command feels slow, the delay is almost always VoxType's speech-to-text step, not vocon.
+vocon's own work after you release the key (parse the transcript, look up windows, run the
+action) takes tens of milliseconds. So the way to speed things up is to change how VoxType
+transcribes. These are the changes that helped on the machine vocon was developed on, in order of
+payoff. VoxType changes its commands between releases, so this section describes the changes and
+leaves the exact invocations to its own documentation: the
+[VoxType README](https://github.com/peteonrails/voxtype#readme) (see "Supported Engines" and "GPU
+Acceleration") and [voxtype.io](https://voxtype.io). Its `--help` output is the up-to-date
+reference for your installed version.
+
+Measured on a Ryzen laptop (AVX2 CPU, no AVX-512, Radeon 680M integrated GPU) with one- to
+two-second commands such as "space one". Treat these as indicative: the sample is small and your
+hardware will differ.
+
+| VoxType setup | Transcription time |
+|---|---|
+| Whisper `base.en`, CPU (the default) | ~0.85 s, about the same for any short clip |
+| Whisper `base.en`, GPU (Vulkan) | ~0.2 to 0.6 s (the first run after the daemon starts was the slowest) |
+| Parakeet (English, int8 model), CPU | ~0.08 to 0.14 s |
+
+1. **Switch to a faster engine, such as Parakeet.** Whisper pads every clip to a fixed 30-second
+   window, so a two-word command costs about as much as a long sentence. Parakeet doesn't, and
+   it was the biggest improvement here. English only.
+   - VoxType's Whisper and "ONNX" engines (Parakeet, Moonshine and others) are separate binaries.
+     Packaged installs, including the AUR's `voxtype-bin`, usually ship both, so you switch the
+     active binary instead of compiling anything. If VoxType tells you an engine "requires the
+     feature", it is running the wrong binary.
+   - Download the model, choose the engine **and name the model explicitly** in VoxType's config,
+     then restart the daemon. Without a model set, the daemon looks for a default you probably
+     haven't downloaded and exits, which makes vocon report "VoxType isn't running". The
+     daemon's journal (`journalctl --user -u voxtype`) shows why.
+   - The daemon logs how long each transcription took, so you can compare engines yourself.
+2. **If you stay on Whisper, turn on GPU acceleration** (Vulkan works across AMD, NVIDIA and
+   Intel). VoxType's ONNX engines only get GPU builds for some hardware (they need AVX-512, or
+   CUDA/MIGraphX), so on a machine like the one above it is a choice between Whisper on the GPU
+   and Parakeet on the CPU. Parakeet on the CPU was faster here.
+3. **A smaller Whisper model is faster but less accurate.** Only worth it if accuracy is already
+   good, since `base.en` already struggles with some command words.
+4. **Don't enable Parakeet's streaming mode for vocon.** It transcribes while you speak, but VoxType
+   makes it toggle-to-talk (press to start, press again to stop), which doesn't fit vocon's
+   hold-the-key gesture.
+
+**After changing engines:**
+
+- Different engines format text differently (capitalisation, punctuation, "1" versus "one", how
+  names are spelled). vocon normalises transcripts, but you may need to add or adjust
+  [aliases](#improving-recognition) for words that are now misheard. `qs log -p
+  /usr/share/omarchy/shell | grep "vocon: heard"` shows what the engine produced.
+- Speech-to-text stays local with every engine. VoxType downloads the model files once, and
+  transcription itself doesn't use the network.
+- vocon doesn't care which engine is running. It calls VoxType the same way for all of them, so
+  nothing in vocon's config changes.
+
 ## Troubleshooting
 
 First, always: `omarchy-shell vocon status` (should print `idle`) and
@@ -402,7 +458,7 @@ First, always: `omarchy-shell vocon status` (should print `idle`) and
 | "Slack isn't running" | The `slack ...` form needs a Slack window; say `open slack` first. |
 | Keystrokes went to the wrong window | Keystroke commands go to whichever window is focused when they run. Hyprland's focus follows the mouse by default, so a nudge of the mouse mid-command can change the target. |
 | Music pauses on every command | `voxtype config set audio.pause_media false`, then restart `voxtype`. |
-| Transcription is slow | Use a GPU (`voxtype setup gpu --enable`) or a smaller model. |
+| Transcription is slow | See [Performance](#performance): a faster engine or GPU acceleration. |
 | A command you expect isn't recognised | Commands are strict: say the words in order with no filler. The notification lists what was expected next. Test it: `omarchy-shell vocon simulate "<what you said>"`. |
 
 ## Updating and uninstalling
