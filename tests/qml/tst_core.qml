@@ -17,6 +17,21 @@ TestCase {
     compare(r.actions[0].workspace, 1)
   }
 
+  function test_pipeline_move_focused_space_one() {
+    var r = Pipeline.interpret(Config.defaults, { clients: [] }, "Move focused space 1.")
+    compare(r.outcome.kind, "matched")
+    compare(r.actions.length, 1)
+    compare(r.actions[0].type, "hypr.moveWindowToWorkspace")
+    compare(r.actions[0].workspace, 1)
+    compare(r.actions[0].follow, true)
+  }
+
+  function test_pipeline_fuzzy_alias() {
+    var r = Pipeline.interpret(Config.defaults, { clients: [] }, "Base 2.")
+    compare(r.outcome.kind, "matched")
+    compare(r.actions[0].workspace, 2)
+  }
+
   function test_hyprctl_argv() {
     var argv = Hyprctl.toArgv({ type: "hypr.focusWorkspace", workspace: 2 })
     compare(argv[0], "hyprctl")

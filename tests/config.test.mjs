@@ -32,3 +32,12 @@ test("wrong types and out-of-range values are reported and defaulted", () => {
 test("a null default accepts a string (voxtype.model)", () => {
   assert.equal(parse('{"voxtype":{"model":"tiny.en"}}').config.voxtype.model, "tiny.en");
 });
+
+test("bad alias lists are reported and dropped", () => {
+  const { config, errors } = parse('{"matching":{"aliases":{"go":"went","stop":[1]}}}');
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /go, stop/);
+  assert.equal(config.matching.aliases.go, undefined);
+  assert.equal(config.matching.aliases.stop, undefined);
+  assert.ok(config.matching.aliases.space.length > 0);
+});

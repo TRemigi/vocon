@@ -43,3 +43,12 @@ fi
 
 omarchy-shell -q shell rescanPlugins || true
 omarchy plugin validate "$DEST"
+
+# A running shell keeps the old service code (the QML engine caches modules), so changed
+# code only takes effect after a shell restart. Opt in: it briefly redraws the bar.
+if [ "${1:-}" = "--restart" ]; then
+  omarchy-restart-shell >/dev/null 2>&1
+  echo "shell restarted: new code is live"
+else
+  echo "NOTE: a running shell keeps the old code; run omarchy-restart-shell (or re-run with --restart) to load changes"
+fi

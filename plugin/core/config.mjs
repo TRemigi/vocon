@@ -4,7 +4,8 @@
 export var defaults = {
   pushToTalk: { key: "F10" },
   voxtype: { model: null, showOsd: true, maxSeconds: 15, transcribeTimeoutSeconds: 20 },
-  matching: { threshold: 0.8 },
+  // aliases: spoken word -> extra words the recogniser commonly produces for it.
+  matching: { threshold: 0.8, aliases: { space: ["pace", "base", "spice"], move: ["moved", "moves"] } },
   feedback: { notifyOnNoMatch: true, notifyOnSuccess: false },
   packs: { hyprland: {} },
 };
@@ -38,6 +39,19 @@ function checkRanges(config, errors) {
   if (!(config.matching.threshold > 0 && config.matching.threshold <= 1)) {
     errors.push("matching.threshold must be in (0, 1]");
     fixed = Object.assign({}, fixed, { matching: Object.assign({}, fixed.matching, { threshold: defaults.matching.threshold }) });
+  }
+  var aliases = config.matching.aliases;
+  var badAliases = Object.keys(aliases).filter(function (word) {
+    var list = aliases[word];
+    return !Array.isArray(list) || !list.every(function (w) { return typeof w === "string"; });
+  });
+  if (badAliases.length) {
+    errors.push("matching.aliases." + badAliases.join(", ") + " must be an array of strings");
+    var kept = {};
+    Object.keys(aliases).forEach(function (word) {
+      if (badAliases.indexOf(word) === -1) kept[word] = aliases[word];
+    });
+    fixed = Object.assign({}, fixed, { matching: Object.assign({}, fixed.matching, { aliases: kept }) });
   }
   if (typeof config.pushToTalk.key !== "string" || config.pushToTalk.key === "") {
     errors.push("pushToTalk.key must be a non-empty string");

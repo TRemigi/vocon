@@ -11,7 +11,7 @@
 // Pure; ES2017-conservative.
 
 import { defaults } from "../config.mjs";
-import { interpret } from "../pipeline.mjs";
+import { interpret, registryErrors } from "../pipeline.mjs";
 import { notify } from "../execution/actions.mjs";
 
 export function initialState(config) {
@@ -38,21 +38,34 @@ function fail(state, message) {
   ]);
 }
 
+function failureTitle(outcome) {
+  return outcome.kind === "incomplete" ? "Incomplete command"
+    : outcome.kind === "ambiguous" ? "Ambiguous command"
+    : "Didn't understand";
+}
+
+// "move banana" -> “move banana” — after "move", expected: focused
+function failureBody(transcript, outcome) {
+  var heard = "“" + transcript + "”";
+  if (outcome.kind === "ambiguous") return heard + " — “" + outcome.candidates.join("” or “") + "” fit equally";
+  var after = outcome.path && outcome.path.length ? " after “" + outcome.path.join(" ") + "”" : "";
+  var expected = outcome.expected && outcome.expected.length ? ", expected: " + outcome.expected.join(" | ") : "";
+  return heard + " —" + (outcome.kind === "incomplete" ? " missing" + after : " no match" + after) + expected;
+}
+
 // Both inputs are in: interpret and hand back the command's actions.
 function complete(state) {
   var interpreted = interpret(state.config, { clients: state.clients }, state.transcript);
   var outcome = interpreted.outcome;
   var feedback = state.config.feedback;
   var effects = [{ type: "watchdog.disarm" }, log("heard \"" + state.transcript + "\" -> " + outcome.kind +
-    (outcome.commandId ? " " + outcome.commandId : ""))];
+    (outcome.commandId ? " " + outcome.commandId + " (score " + outcome.score.toFixed(2) + ")" : ""))];
 
   if (outcome.kind === "matched") {
     effects = effects.concat(interpreted.actions);
     if (feedback.notifyOnSuccess) effects.push(notify("Voice command", state.transcript, "low"));
-  } else if (outcome.kind === "nomatch" && feedback.notifyOnNoMatch) {
-    effects.push(notify("Didn't understand", "“" + state.transcript + "”", "low"));
-  } else if (outcome.kind === "ambiguous" && feedback.notifyOnNoMatch) {
-    effects.push(notify("Ambiguous command", "“" + state.transcript + "” matches several commands", "low"));
+  } else if (outcome.kind !== "empty" && feedback.notifyOnNoMatch) {
+    effects.push(notify(failureTitle(outcome), failureBody(state.transcript, outcome), "low"));
   }
   return result(idle(state), effects);
 }
@@ -64,8 +77,9 @@ function maybeComplete(state) {
 export function reduce(state, event) {
   switch (event.type) {
     case "ConfigLoaded": {
-      var effects = event.errors && event.errors.length
-        ? [notify("vocon config problems", event.errors.join("; "), "normal")]
+      var problems = (event.errors || []).concat(registryErrors(event.config));
+      var effects = problems.length
+        ? [notify("vocon config problems", problems.join("; "), "normal")]
         : [];
       return result(Object.assign({}, state, { config: event.config }), effects);
     }
