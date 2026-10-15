@@ -96,9 +96,9 @@ TestCase {
 
     var s = Session.initialState()
     var steps = [{ type: "PttPressed" }, { type: "PttReleased" },
-                 { type: "TranscriptReceived", text: "dictate" }, { type: "ClientsSnapshot", clients: slack },
+                 { type: "TranscriptReceived", text: "dictate" }, { type: "ClientsSnapshot", clients: slack, unlocked: true },
                  { type: "PttPressed" }, { type: "PttReleased" },
-                 { type: "TranscriptReceived", text: "hello there" }, { type: "ClientsSnapshot", clients: slack }]
+                 { type: "TranscriptReceived", text: "hello there" }, { type: "ClientsSnapshot", clients: slack, unlocked: true }]
     var effects = []
     for (var i = 0; i < steps.length; i++) {
       var r = Session.reduce(s, steps[i]); s = r.state; effects = effects.concat(r.effects)
@@ -131,7 +131,7 @@ TestCase {
     var s = Session.initialState()
     var steps = [{ type: "PttPressed" }, { type: "PttReleased" },
                  { type: "TranscriptReceived", text: "space three" },
-                 { type: "ClientsSnapshot", clients: [] }]
+                 { type: "ClientsSnapshot", clients: [], unlocked: true }]
     var effects = []
     for (var i = 0; i < steps.length; i++) {
       var r = Session.reduce(s, steps[i])

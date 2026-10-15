@@ -1,6 +1,6 @@
 // Side effects for VoxType: start/stop/cancel a recording and report the transcript.
 //
-// - start checks the daemon is up and free first (never touches someone else's recording),
+// - start first refuses while the screen is locked (`refused`), then checks the daemon is up and free first (never touches someone else's recording),
 //   then confirms ~0.8 s later that it really began recording (`record start` exits 0 even
 //   when the daemon then fails to open the mic).
 // - stop waits for start to have finished so the daemon sees the signals in order.
@@ -13,6 +13,7 @@ Item {
 
   signal transcript(string text)
   signal failed(string message)
+  signal refused()
 
   readonly property string utterancePath: Quickshell.env("XDG_RUNTIME_DIR") + "/vocon-utterance.txt"
   readonly property string statePath: Quickshell.env("XDG_RUNTIME_DIR") + "/voxtype/state"
@@ -32,7 +33,7 @@ Item {
     root._released = false
     root._model = model || ""
     root._showOsd = showOsd
-    preState.run(["cat", root.statePath])
+    lock.check()
   }
 
   function stop(timeoutSeconds) {
@@ -67,6 +68,17 @@ Item {
   function _runStop() {
     stopRun.run(["voxtype", "record", "stop", "--wait", "--json",
                  "--timeout", String(root._stopTimeoutSeconds)])
+  }
+
+  // Nothing is recorded while the screen is locked (or its state can't be confirmed).
+  ScreenLock {
+    id: lock
+    onChecked: function(unlocked) {
+      if (unlocked) { preState.run(["cat", root.statePath]); return }
+      root._starting = false
+      root._stopPending = false
+      root.refused()
+    }
   }
 
   Run {

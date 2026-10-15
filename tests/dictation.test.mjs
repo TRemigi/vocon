@@ -16,7 +16,7 @@ const run = (state, ...events) => events.reduce((acc, e) => {
 // one full press -> release -> transcript -> windows cycle
 const utter = (state, text, clients = slackFocused) => run(state,
   { type: "PttPressed" }, { type: "PttReleased" },
-  { type: "TranscriptReceived", text }, { type: "ClientsSnapshot", clients });
+  { type: "TranscriptReceived", text }, { type: "ClientsSnapshot", clients, unlocked: true });
 
 const types = (effects) => effects.map((e) => e.type);
 const armed = () => utter(initialState(), "dictate").state;

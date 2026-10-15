@@ -44,7 +44,7 @@ Hyprland key press/release
   (see "Adding an action type"). The core never calls a shell function.
 - **Elm-style session.** All state transitions are `reduce(state, event)`; the QML only feeds it
   events (`PttPressed`, `PttReleased`, `TranscriptReceived`, `ClientsSnapshot`, `RecordingFailed`,
-  `WatchdogExpired`, `Cancelled`, `ConfigLoaded`, `DictationExpired`) and runs the effects.
+  `ScreenLocked`, `WatchdogExpired`, `Cancelled`, `ConfigLoaded`, `DictationExpired`) and runs the effects.
 - **Bounded contexts** (directories under `plugin/core/`):
   | Context | Owns |
   |---|---|
@@ -115,6 +115,16 @@ phrases. Example: `move focused space 1` = `move` → `focused` → `space` → 
 7. **Never run `stop` after a failed start**, and never cancel a recording vocon didn't start:
    `Voxtype.qml` checks the daemon is up and idle first and verifies 0.8 s later that it really
    began recording.
+8. **No voice control while the screen is locked.** Two gates, both fail closed (only
+   `omarchy-hyprland-session-locked` exiting 1 means unlocked; 0, 2, a missing script or a crash all
+   mean locked): `Voxtype.start` probes before touching the mic (`refused` -> `ScreenLocked`), and
+   `Hyprland.snapshotClients` probes alongside `hyprctl clients`, so `ClientsSnapshot.unlocked` is as
+   fresh as the data a command is interpreted against. `Session.complete` refuses unless
+   `unlocked === true`: nothing is interpreted, typed or run, dictation is dropped, the transcript is
+   not logged. This covers a lock that engages mid-recording, `simulate`, and armed dictation (typing
+   into the lock screen's password field would otherwise be possible). Any new path that runs
+   actions must go through `complete`. Residual window: a lock engaging in the few ms between the
+   probe and the action.
 
 ## Packs, adapters and how to extend
 
@@ -254,6 +264,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | Slack: scoped short forms + `slack …` navigation-only form | Hands-free from anywhere, but sending/deleting only on a window the user is looking at. |
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |
 | Arrow keys are a built-in `keys` pack, not a core change | "Core" is read as "global, not app-scoped": the rule is that features arrive as packs. `up/down/left/right [count]` work in any window; the count slot is capped (`packs.keys.maxCount`, default 20, hard cap 100) so a mishearing can't hold a key down. More global keys (home, end, tab, enter) belong in this pack. |
+| Lock gate lives in the reducer, probe at the edge; fail closed | Policy ("locked -> refuse") is pure and table-tested; only the fact comes from a process. Considered and rejected: relying on Hyprland not delivering unflagged binds while locked (doesn't cover `simulate`, a recording started before the lock, or armed dictation); a polled/cached lock flag (stale at the moment that matters). |
 | Dropped `send` as a synonym of `move` | Collided with Slack's `send`. |
 | Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. The app has no tab shortcut, so `tab home|code` goes through the command palette with fixed text. `session <name>` types *spoken* text into that palette, which also holds commands, so it is focused-only and `packs.claude.sessionSubmit: false` leaves Enter to the user (the palette is a second command interpreter; keep speech-fed palette use navigation-scoped). |
 | `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |

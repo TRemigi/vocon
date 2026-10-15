@@ -25,11 +25,12 @@ Item {
     id: voxtype
     onTranscript: function(text) { service.dispatch({ type: "TranscriptReceived", text: text }) }
     onFailed: function(message) { service.dispatch({ type: "RecordingFailed", message: message }) }
+    onRefused: service.dispatch({ type: "ScreenLocked" })
   }
 
   Hyprland {
     id: hypr
-    onClientsReady: function(clients) { service.dispatch({ type: "ClientsSnapshot", clients: clients }) }
+    onClientsReady: function(clients, unlocked) { service.dispatch({ type: "ClientsSnapshot", clients: clients, unlocked: unlocked }) }
   }
 
   Timer {

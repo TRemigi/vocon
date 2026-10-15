@@ -5,7 +5,8 @@
 // Phases: idle -> listening (key held) -> transcribing (key released) -> idle.
 // The shell performs the returned effects and feeds results back as events:
 //   PttPressed, PttReleased, TranscriptReceived{text}, ClientsSnapshot{clients},
-//   RecordingFailed{message}, Cancelled, WatchdogExpired, ConfigLoaded{config, errors}
+//   RecordingFailed{message}, ScreenLocked, Cancelled, WatchdogExpired, ConfigLoaded{config, errors}
+// ClientsSnapshot carries `unlocked`: only `true` lets a command run (fail closed; see `refuse`).
 // Effects: voxtype.start/stop/cancel, hypr.snapshotClients, watchdog.arm/disarm, notify, log,
 // plus whatever actions the matched command emits.
 // Pure; ES2017-conservative.
@@ -18,7 +19,7 @@ import { normalize } from "../interpretation/utterance.mjs";
 
 export function initialState(config) {
   // dictation: null, or { address } of the window it was armed for (see completeDictation)
-  return { phase: "idle", transcript: null, clients: null, dictation: null, config: config || defaults };
+  return { phase: "idle", transcript: null, clients: null, unlocked: false, dictation: null, config: config || defaults };
 }
 
 function log(message) {
@@ -26,7 +27,7 @@ function log(message) {
 }
 
 function idle(state) {
-  return Object.assign({}, state, { phase: "idle", transcript: null, clients: null });
+  return Object.assign({}, state, { phase: "idle", transcript: null, clients: null, unlocked: false });
 }
 
 function result(state, effects) {
@@ -54,6 +55,18 @@ function failureBody(transcript, outcome) {
   var after = outcome.path && outcome.path.length ? " after “" + outcome.path.join(" ") + "”" : "";
   var expected = outcome.expected && outcome.expected.length ? ", expected: " + outcome.expected.join(" | ") : "";
   return heard + " —" + (outcome.kind === "incomplete" ? " missing" + after : " no match" + after) + expected;
+}
+
+// Voice control is off while the screen is locked. Nothing is interpreted, typed or run, any armed
+// dictation is dropped, and the transcript is not logged. "Locked" includes "can't tell": the shell
+// reports `unlocked: true` only when it positively confirmed an unlocked session.
+function refuse(state) {
+  return result(Object.assign({}, idle(state), { dictation: null }), [
+    { type: "watchdog.disarm" },
+    { type: "dictation.timer.disarm" },
+    notify("Voice commands are off", "The screen is locked", "low"),
+    log("refused: screen locked"),
+  ]);
 }
 
 // Dictation: `dictate` arms it; the next utterance is typed into the focused window instead of being
@@ -107,6 +120,7 @@ function dictateInline(state) {
 
 // Both inputs are in: interpret and hand back the command's actions.
 function complete(state) {
+  if (!state.unlocked) return refuse(state);
   if (state.dictation) return completeDictation(state);
   var interpreted = interpret(state.config, { clients: state.clients }, state.transcript);
   var outcome = interpreted.outcome;
@@ -177,7 +191,10 @@ export function reduce(state, event) {
 
     case "ClientsSnapshot":
       if (state.phase !== "transcribing") return result(state);
-      return maybeComplete(Object.assign({}, state, { clients: event.clients }));
+      return maybeComplete(Object.assign({}, state, { clients: event.clients, unlocked: event.unlocked === true }));
+
+    case "ScreenLocked":
+      return state.phase === "idle" ? result(state) : refuse(state);
 
     case "RecordingFailed":
       return state.phase === "idle" ? result(state) : fail(state, event.message);

@@ -177,6 +177,12 @@ like numbers ("to", "for", "won") are accepted where a number is expected.
 
 **Cancelling:** `omarchy-shell vocon cancel` stops a recording, and disarms dictation.
 
+**While the screen is locked, vocon does nothing.** It won't start recording, and a command that
+finishes after the lock engaged is discarded (nothing runs or is typed, armed dictation is dropped,
+the transcript isn't logged). That includes `omarchy-shell vocon simulate`. vocon asks
+`omarchy-hyprland-session-locked`, and an "undetermined" answer counts as locked. You get a
+low-priority "Voice commands are off" notification.
+
 ## Command reference
 
 ### Workspaces and windows
@@ -528,7 +534,7 @@ First, always: `omarchy-shell vocon status` (should print `idle`) and
 
 | Symptom | Likely cause and fix |
 |---|---|
-| Pressing the key does nothing | Check the binding exists: `hyprctl binds -j \| jq '.[] \| select(.description\|test("vocon"))'`. Re-run `bin/vocon-keybind`. If `status` errors, the plugin isn't loaded: `bin/vocon-install --restart`. |
+| Pressing the key does nothing | Is the screen locked? vocon is off while locked (`omarchy-hyprland-session-locked; echo $?` prints 1 when unlocked). Otherwise check the binding exists: `hyprctl binds -j \| jq '.[] \| select(.description\|test("vocon"))'`. Re-run `bin/vocon-keybind`. If `status` errors, the plugin isn't loaded: `bin/vocon-install --restart`. |
 | Notification: "VoxType isn't running" | `systemctl --user start voxtype`, or run `omarchy-voxtype-install`. |
 | Notification: "VoxType didn't start recording" | Almost always a wrong `audio.device`. Use an ALSA name from `arecord -L \| grep ^sysdefault`, then restart the `voxtype` service. See the daemon's complaint: `journalctl --user -u voxtype -n 20`. |
 | Notification: "VoxType is busy" | Another recording or dictation is in progress (F9 dictation, or a stuck one). Wait, or `voxtype record cancel`. |
