@@ -61,6 +61,15 @@ TestCase {
     compare(Pipeline.interpret(cfg, { clients: inSlack }, "Tab next.").outcome.kind, "nomatch")
   }
 
+  function test_arrow_keys_under_v4() {
+    var anywhere = [{ address: "0x1", "class": "com.mitchellh.ghostty", title: "", mapped: true, focusHistoryID: 0 }]
+    compare(Keys.toArgv(Pipeline.interpret(Config.defaults, { clients: anywhere }, "Down.").actions[0]).join(" "),
+            "wtype -k Down")
+    compare(Keys.toArgv(Pipeline.interpret(Config.defaults, { clients: anywhere }, "Down three.").actions[0]).join(" "),
+            "wtype -k Down -k Down -k Down")
+    compare(Pipeline.interpret(Config.defaults, { clients: anywhere }, "Down 21.").outcome.kind, "nomatch")
+  }
+
   function test_claude_pack_under_v4() {
     var claude = [{ address: "0x1", "class": "com.anthropic.Claude", title: "", mapped: true, focusHistoryID: 0 }]
     var terminal = [{ address: "0x2", "class": "com.mitchellh.ghostty", title: "", mapped: true, focusHistoryID: 0 },

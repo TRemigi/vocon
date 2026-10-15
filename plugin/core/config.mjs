@@ -12,7 +12,7 @@ export var defaults = {
   // aliases: spoken word -> extra words the recogniser commonly produces for it.
   matching: { threshold: 0.8, aliases: { space: ["pace", "base", "spice"], move: ["moved", "moves"], claude: ["cloud", "clod"] } },
   feedback: { notifyOnNoMatch: true, notifyOnSuccess: false },
-  packs: { hyprland: {}, apps: {}, slack: {}, claude: {}, dictation: {}, custom: {} },
+  packs: { hyprland: {}, apps: {}, keys: {}, slack: {}, claude: {}, dictation: {}, custom: {} },
   // `dictate` types your next utterance into the focused window. armSeconds: how long it stays
   // armed; maxSeconds: longest dictation; ignore: whole utterances never typed (Whisper often
   // invents these from silence).

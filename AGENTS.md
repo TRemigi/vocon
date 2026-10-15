@@ -120,7 +120,7 @@ phrases. Example: `move focused space 1` = `move` → `focused` → `space` → 
 
 A **pack** is `{ id, commands(config) -> [root nodes], slotTypes?(config) -> { name: slotType } }`,
 registered in `plugin/core/commands/packs/index.mjs`. It is active unless
-`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `slack`, `claude`, `dictation`, `custom`.
+`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`.
 
 - **App adapters** are packs whose root nodes carry `when(ctx)`; `ctx.active` is the focused
   window (derived from `hyprctl clients` `focusHistoryID === 0`), `ctx.clients` all windows.
@@ -253,8 +253,9 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | Dictation as session state, single-shot, focus-bound | A later command must never be typed into a window; VoxType's own typing mode would collide with vocon's recording. |
 | Slack: scoped short forms + `slack …` navigation-only form | Hands-free from anywhere, but sending/deleting only on a window the user is looking at. |
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |
+| Arrow keys are a built-in `keys` pack, not a core change | "Core" is read as "global, not app-scoped": the rule is that features arrive as packs. `up/down/left/right [count]` work in any window; the count slot is capped (`packs.keys.maxCount`, default 20, hard cap 100) so a mishearing can't hold a key down. More global keys (home, end, tab, enter) belong in this pack. |
 | Dropped `send` as a synonym of `move` | Collided with Slack's `send`. |
-| Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. |
+| Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. The app has no tab shortcut, so `tab home|code` goes through the command palette with fixed text. `session <name>` types *spoken* text into that palette, which also holds commands, so it is focused-only and `packs.claude.sessionSubmit: false` leaves Enter to the user (the palette is a second command interpreter; keep speech-fed palette use navigation-scoped). |
 | `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |
 
 ## Known limitations and backlog

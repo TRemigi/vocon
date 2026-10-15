@@ -201,6 +201,18 @@ Built-in apps: `terminal`, `browser`, `files` (or `nautilus`), `spotify`, `obsid
 in the [app catalog](#app-catalog). `open terminal` focuses the terminal you already have; for a
 second one, add a command (see [custom commands](#custom-commands)).
 
+### Arrow keys
+
+| Say | Does |
+|---|---|
+| `up`, `down`, `left`, `right` | press that arrow key once in the focused window |
+| `down three`, `up 5` | press it that many times (digit or number word) |
+
+Works in any window. The count is 1-20; a larger or unrecognised count does nothing rather than
+guess. Change the limit with `packs.keys.maxCount` (never above 100). Apps keep their own commands
+alongside these (Slack's `message up` is separate). The recogniser sometimes hears "right" as
+"write": if that happens to you, add `"right": ["write"]` under `matching.aliases`.
+
 ### Dictation
 
 | Say | Does |
@@ -277,6 +289,9 @@ prefixed with `claude` (`claude session next`), which focuses Claude Desktop fir
 |---|---|---|
 | `tab home` / `tab code` | switch to the Home / Code tab | Ctrl+K, type the name, Enter (the app has no tab shortcut) |
 | `session new` / `next` / `previous` | new session / cycle sessions | Ctrl+N / Ctrl+Tab / Ctrl+Shift+Tab |
+| `session <name>` | jump to a session by (part of) its title | Ctrl+K, type the name, Enter |
+| `palette <text>` (or `search <text>`) | search the palette, without choosing | Ctrl+K, type the text |
+| `confirm` | choose the highlighted palette result | Enter |
 | `pane diff` / `terminal` | toggle that pane | Ctrl+Shift+D / Ctrl+\` |
 | `side chat` | open a side chat | Ctrl+; |
 | `menu model` / `permission` / `effort` | open that menu | Ctrl+Shift+I / Ctrl+Shift+M / Ctrl+Shift+E |
@@ -311,6 +326,14 @@ prompt and submit it.
 - `tab` goes through the command palette and presses Enter on its first result. That `code` gives
   the Code tab was confirmed by hand; `home` was not. If the palette is slow, raise
   `packs.claude.paletteDelay` / `resultsDelay`.
+- `session <name>` types what you said into the palette and presses Enter on its first result.
+  The palette also holds commands, so a misheard name could run one: it exists **only while Claude
+  Desktop is focused**, and `packs.claude.sessionSubmit: false` types the name but leaves Enter to
+  you. `next`, `previous` and `new` win over a title, so a session titled "new …" can't be reached
+  this way. Spoken titles are lowercase words without punctuation; the palette's own search decides
+  whether that matches.
+- `palette <text>` only types, so you can read the results and pick one (arrow keys, or say
+  `confirm`). Like `session <name>` it exists only while Claude Desktop is focused.
 - If Claude Desktop is slow to take focus, raise `packs.claude.focusDelay` (milliseconds).
 - Shortcuts that don't pass through the window (such as a global quick-entry hotkey) can't be
   sent by vocon.
@@ -392,9 +415,10 @@ conflict) are reported and only that entry is skipped.
 | `matching.aliases` | `space: [pace, base, spice]`, `move: [moved, moves]` | Words the recogniser tends to produce for a command word. A list you set for a word **replaces** its default list. |
 | `feedback.notifyOnNoMatch` | `true` | Notify when a command isn't understood. |
 | `feedback.notifyOnSuccess` | `false` | Notify with the transcript on every successful command. |
-| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `slack`, `claude`, `dictation`, `custom`. |
+| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`. |
 | `packs.hyprland.workspaces` | `10` | Highest workspace number you can say. |
 | `packs.hyprland.moveFollows` | `true` | Whether `move focused space n` also switches to that workspace. |
+| `packs.keys.maxCount` | `20` | Most presses an arrow command accepts (`down 20`). Capped at 100. |
 | `packs.slack.match` | `"^slack$"` | Regex for the Slack window class. |
 | `packs.slack.send` | `"Return"` | Key `send` presses (`"ctrl+Return"` for Ctrl+Enter). |
 | `packs.slack.focusDelay` | `300` | ms to let Slack take focus (the `slack ...` form). |
@@ -405,6 +429,7 @@ conflict) are reported and only that entry is skipped.
 | `packs.claude.focusDelay` | `300` | ms to let Claude Desktop take focus (the `claude ...` form). |
 | `packs.claude.paletteDelay` | `350` | ms for the command palette to open before `tab` types. |
 | `packs.claude.resultsDelay` | `450` | ms for its results to settle before Enter. |
+| `packs.claude.sessionSubmit` | `true` | `session <name>` presses Enter on the first result; `false` only types the name. |
 | `dictation.armSeconds` | `30` | How long `dictate` stays armed (5-300). |
 | `dictation.maxSeconds` | `60` | Longest dictation recording (5-120). |
 | `dictation.ignore` | `["thank you for watching", "thanks for watching", "you"]` | Whole utterances never typed (Whisper often invents these from silence). |

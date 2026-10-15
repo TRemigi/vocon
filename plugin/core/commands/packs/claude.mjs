@@ -10,11 +10,14 @@
 //
 //   tab home|code                        Ctrl+K, type the name, Enter (no tab shortcut exists)
 //   session new|next|previous            Ctrl+N, Ctrl+Tab, Ctrl+Shift+Tab
+//   session <name>                       Ctrl+K, type the name, Enter          (focused only)
 //   pane diff|terminal                   Ctrl+Shift+D, Ctrl+`                      (toggles)
 //   side chat                            Ctrl+;
 //   menu model|permission|effort         Ctrl+Shift+I, Ctrl+Shift+M, Ctrl+Shift+E
 //   view                                 Ctrl+O (cycle view modes)
 //   palette | settings | sidebar | shortcuts    Ctrl+K, Ctrl+, , Ctrl+B, Ctrl+/
+//   palette <text>                       Ctrl+K, type the text (no Enter)       (focused only)
+//   confirm                              Enter, to choose a palette result      (focused only)
 //   find [next|previous]                 Ctrl+F, Ctrl+G, Ctrl+Shift+G
 //   zoom in|out|reset | fullscreen       Ctrl+=, Ctrl+-, Ctrl+0, F11
 //   close session|pane | reopen          Ctrl+W, Ctrl+\, Ctrl+Shift+T          (focused only)
@@ -25,7 +28,7 @@
 import { focusWindow, keysAction, notify } from "../../execution/actions.mjs";
 import { combo, key, text, sleep } from "../../execution/keys.mjs";
 import { classMatches, findWindow } from "../../execution/windows.mjs";
-import { numberSlot } from "../../interpretation/slots.mjs";
+import { numberSlot, wordsSlot } from "../../interpretation/slots.mjs";
 import { command, keyword, value } from "../dsl.mjs";
 
 function options(config) {
@@ -35,6 +38,7 @@ function options(config) {
     focusDelay: 300,                   // ms to let the window take focus (the `claude ...` form)
     paletteDelay: 350,                 // ms for the command palette to open before typing
     resultsDelay: 450,                 // ms for its results to settle before Enter
+    sessionSubmit: true,               // `session <name>`: Enter on the first result (false: type only)
   },(config.packs && config.packs.claude) || {});
 }
 
@@ -49,7 +53,9 @@ function leaf(finish, steps) {
 }
 
 // Opens or toggles something in the UI; safe to say from any app.
-function navigation(o, finish) {
+// `byName` adds `session <name>`, which types what was said into the palette; it is only offered
+// while the window is focused (see the note on it below).
+function navigation(o, finish, byName) {
   var go = function (steps) { return leaf(finish, steps); };
   // The app has no shortcut for its tabs, so go through the command palette: the first result for
   // the tab's name is the tab itself.
@@ -66,7 +72,15 @@ function navigation(o, finish) {
       keyword("new", go([combo("ctrl+n")])),
       keyword("next", go([combo("ctrl+Tab")])),
       keyword("previous", go([combo("ctrl+shift+Tab")])),
-    ]),
+    ].concat(byName ? [
+      // The palette also holds commands, so a misheard name could run one when Enter is pressed:
+      // hence focused-only, and `sessionSubmit: false` to type the name and leave Enter to you.
+      // Keywords win over this, so a session titled "new ..." can't be reached by name.
+      value("name", "words", go(function (args) {
+        var steps = [combo("ctrl+k"), sleep(o.paletteDelay), text(args.name)];
+        return o.sessionSubmit ? steps.concat([sleep(o.resultsDelay), key("Return")]) : steps;
+      })),
+    ] : [])),
 
     keyword("pane", {}, [
       keyword("diff", go([combo("ctrl+shift+d")])),
@@ -83,7 +97,13 @@ function navigation(o, finish) {
 
     keyword("view", Object.assign({ words: ["views"] }, go([combo("ctrl+o")]))),
 
-    keyword("palette", Object.assign({ words: ["search"] }, go([combo("ctrl+k")]))),
+    // `palette <text>` types what you said and stops there: you see the results and choose (arrow
+    // keys, or say `confirm`). Speech-fed, so focused-only like `session <name>`.
+    keyword("palette", Object.assign({ words: ["search"] }, go([combo("ctrl+k")])), byName ? [
+      value("text", "words", go(function (args) {
+        return [combo("ctrl+k"), sleep(o.paletteDelay), text(args.text)];
+      })),
+    ] : []),
     keyword("settings", go([combo("ctrl+comma")])),
     keyword("sidebar", go([combo("ctrl+b")])),
     keyword("shortcuts", go([combo("ctrl+slash")])),
@@ -119,6 +139,7 @@ function actions(o, finish) {
 
     keyword("stop", go([key("Escape")])),          // stops Claude's response
     keyword("send", go([combo(o.send)])),
+    keyword("confirm", go([key("Return")])),      // Enter: choose the highlighted palette result
     keyword("newline", go([combo("shift+Return")])),
     keyword("accept", go([key("Tab")])),           // the suggested prompt, in an empty prompt box
 
@@ -141,7 +162,7 @@ export var claudePack = {
   id: "claude",
 
   slotTypes: function () {
-    return { item: numberSlot(9, "menu item number") };
+    return { item: numberSlot(9, "menu item number"), words: wordsSlot() };
   },
 
   commands: function (config) {
@@ -158,7 +179,7 @@ export var claudePack = {
       return [focusWindow(window.address), keysAction([sleep(o.focusDelay)].concat(steps))];
     };
 
-    var scoped = navigation(o, focused).concat(actions(o, focused)).map(function (node) {
+    var scoped = navigation(o, focused, true).concat(actions(o, focused)).map(function (node) {
       return Object.assign({}, node, { when: whenClaude, scope: "while Claude Desktop is focused" });
     });
     return scoped.concat([command("claude", {}, navigation(o, anywhere))]);

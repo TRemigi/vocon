@@ -58,7 +58,11 @@ const acting = {
   "reopen session": "-M ctrl -M shift -k t -m shift -m ctrl",
   "stop": "-k Escape",
   "send": "-k Return",
+  "session my project": "-M ctrl -k k -m ctrl -s 350 my project -s 450 -k Return",
   "newline": "-M shift -k Return -m shift",
+  "confirm": "-k Return",
+  "palette document review": "-M ctrl -k k -m ctrl -s 350 document review",
+  "search document review": "-M ctrl -k k -m ctrl -s 350 document review",
   "accept": "-k Tab",
   "choose 1": "-k 1",
   "choose two": "-k 2",
@@ -150,6 +154,32 @@ test("built-in commands still work, in and out of Claude Desktop", () => {
 test("'claude' is heard despite common mishearings", () => {
   assert.equal(keys("cloud settings", inTerminal).length, 2);
   assert.equal(keys("clod settings", inTerminal).length, 2);
+});
+
+test("session <name> types the name into the palette; the keywords still win", () => {
+  assert.deepEqual(keys("Session Fix the login bug.", inClaude),
+    ["-M ctrl -k k -m ctrl -s 350 fix the login bug -s 450 -k Return"]);
+  assert.deepEqual(keys("session next", inClaude), ["-M ctrl -k Tab -m ctrl"]);
+  assert.equal(say("session", inClaude).outcome.kind, "incomplete");
+});
+
+test("session <name> can type the name and leave Enter to you", () => {
+  const { config } = parse('{"packs":{"claude":{"sessionSubmit":false,"paletteDelay":500}}}');
+  assert.deepEqual(keys("session my project", inClaude, config), ["-M ctrl -k k -m ctrl -s 500 my project"]);
+});
+
+test("session <name> is focused-only: speech never reaches the palette from another app", () => {
+  for (const text of ["session my project", "claude session my project"]) {
+    const r = say(text, inTerminal);
+    assert.equal(r.outcome.kind, "nomatch", text);
+    assert.deepEqual(r.actions, [], text);
+  }
+  assert.equal(say("claude session my project", inClaude).outcome.kind, "nomatch");
+});
+
+test("typed session names carry no key syntax", () => {
+  // normalisation reduces speech to letters and digits, so nothing option-like survives
+  assert.equal(keys("session -k ctrl", inClaude)[0], "-M ctrl -k k -m ctrl -s 350 k ctrl -s 450 -k Return");
 });
 
 test("tab delays follow the config", () => {
