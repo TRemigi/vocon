@@ -185,6 +185,27 @@ low-priority "Voice commands are off" notification.
 
 ## Command reference
 
+### Help
+
+| Say | Does |
+|---|---|
+| `help` | open a filterable menu of every command |
+| `help <topic>` | the same menu, for one topic |
+
+Topics: `core` (the built-in commands: workspaces, apps, arrow keys, dictation), one for each app
+pack (`slack`, `claude`), `custom` (your own commands, once you have some), and the built-in packs
+by name (`hyprland` also answers to `workspaces` or `windows`, `keys` to `keyboard`, `apps` to
+`applications`). Disabled packs are not topics. The footer of the menu lists what you can ask for.
+
+Type to filter: every word you type must appear in the command, its other spellings, its topic or
+where it works (`while slack`, `focused move`). Up/Down, PageUp/PageDown, Home/End move; **Esc**
+clears the filter, then closes; Enter closes. The menu is a reference: it never runs anything. Each
+row shows whether it works anywhere or only while an app is focused, and the footer explains
+`<arguments>`. A new pack becomes a topic automatically. The menu is built from the same command
+tree the parser uses, so it can't list something that won't work. While it is open it holds the
+keyboard, so a command that types (`dictate`, `send`) lands in the menu's filter rather than in
+another app. For a terminal, `bin/vocon-commands` prints the same list.
+
 ### Workspaces and windows
 
 | Say | Does |
@@ -421,7 +442,7 @@ conflict) are reported and only that entry is skipped.
 | `matching.aliases` | `space: [pace, base, spice]`, `move: [moved, moves]` | Words the recogniser tends to produce for a command word. A list you set for a word **replaces** its default list. |
 | `feedback.notifyOnNoMatch` | `true` | Notify when a command isn't understood. |
 | `feedback.notifyOnSuccess` | `false` | Notify with the transcript on every successful command. |
-| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`. |
+| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`, `help`. |
 | `packs.hyprland.workspaces` | `10` | Highest workspace number you can say. |
 | `packs.hyprland.moveFollows` | `true` | Whether `move focused space n` also switches to that workspace. |
 | `packs.keys.maxCount` | `20` | Most presses an arrow command accepts (`down 20`). Capped at 100. |
@@ -602,11 +623,12 @@ left installed (`omarchy-voxtype-remove` removes it).
 ```
 plugin/                      what gets installed
   manifest.json  Service.qml   the Omarchy plugin entry; wires events to the pure core
+  Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
   infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
   core/                        pure ES modules, no Qt and no I/O
     listening/                   the push-to-talk session state machine (and dictation)
     interpretation/              normalising speech, word scoring, slot types, the command parser
-    commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, slack, dictation, custom)
+    commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, dictation, custom, help)
     execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
 bin/                         vocon-install, vocon-keybind, vocon-commands
 config/                      example configs (validated by the tests)

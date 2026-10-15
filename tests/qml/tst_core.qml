@@ -143,4 +143,16 @@ TestCase {
     compare(focus.length, 1)
     compare(focus[0].workspace, 3)
   }
+
+  function test_help_menu_rows_and_filter() {
+    var r = Pipeline.interpret(Config.defaults, { clients: [] }, "help slack")
+    compare(r.outcome.kind, "matched")
+    compare(r.actions.length, 1)
+    compare(r.actions[0].type, "help.show")
+    compare(r.actions[0].title, "Slack")
+    verify(r.actions[0].rows.length > 0)
+    var hits = Listing.filterRows(r.actions[0].rows, "channel")
+    verify(hits.length > 0)
+    compare(Listing.filterRows(r.actions[0].rows, "zzzz").length, 0)
+  }
 }

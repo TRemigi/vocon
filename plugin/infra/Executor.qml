@@ -12,6 +12,8 @@ Item {
   property var hypr: null
   property var watchdog: null
   property var dictationTimer: null
+  property var shell: null
+  property string pluginId: "vocon"
 
   readonly property var handlers: ({
     "voxtype.start":      function(e) { root.voxtype.start(e.model, e.showOsd) },
@@ -26,6 +28,10 @@ Item {
       Quickshell.execDetached(["notify-send", "-a", "vocon", "-u", e.urgency, e.title, e.body])
     },
     "log":                function(e) { console.log("vocon: " + e.message) },
+    // The menu is this plugin's own overlay (Help.qml); the descriptor is its payload.
+    "help.show":          function(e) {
+      if (!root.shell || !root.shell.summon(root.pluginId, JSON.stringify(e))) console.log("vocon: help menu unavailable")
+    },
     "exec":               function(e) { Quickshell.execDetached(e.argv) },
     // Same launch path as Omarchy's own bindings (uwsm-app); argv is from the app catalog.
     "app.launch":         function(e) { Quickshell.execDetached(["setsid", "uwsm-app", "--"].concat(e.argv)) }

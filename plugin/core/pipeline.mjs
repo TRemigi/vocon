@@ -13,7 +13,8 @@ export function registryErrors(config, packs) {
 }
 
 // ctx: { clients: [...], ... } read-only facts about the desktop at release time; `active` (the
-// focused window) is derived from clients and is what `when(ctx)` conditions look at.
+// focused window) is derived from clients and is what `when(ctx)` conditions look at; `registry` is
+// the merged command tree (for `help`).
 // outcome.kind: "empty" | "matched" | "incomplete" | "nomatch" | "ambiguous"
 // (see interpretation/parser.mjs); matched outcomes carry commandId ("move focused space"),
 // args and score.
@@ -21,8 +22,8 @@ export function interpret(config, ctx, transcript, packs) {
   var tokens = normalize(transcript);
   if (tokens.length === 0) return { outcome: { kind: "empty" }, actions: [] };
 
-  var context = Object.assign({ active: activeWindow(ctx.clients) }, ctx);
   var registry = buildRegistry(packs || builtinPacks, config);
+  var context = Object.assign({ active: activeWindow(ctx.clients), registry: registry }, ctx);
   var result = parse(registry.roots, registry.slotTypes, tokens, context, config.matching);
   if (result.kind !== "matched") {
     return { outcome: Object.assign({ tokens: tokens }, result), actions: [] };

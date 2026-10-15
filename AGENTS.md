@@ -136,7 +136,7 @@ phrases. Example: `move focused space 1` = `move` → `focused` → `space` → 
 
 A **pack** is `{ id, commands(config) -> [root nodes], slotTypes?(config) -> { name: slotType } }`,
 registered in `plugin/core/commands/packs/index.mjs`. It is active unless
-`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`.
+`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`, `help`.
 
 - **App adapters** are packs whose root nodes carry `when(ctx)`; `ctx.active` is the focused
   window (derived from `hyprctl clients` `focusHistoryID === 0`), `ctx.clients` all windows.
@@ -152,8 +152,21 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 - **Slot types**: `workspace` (1..N), `app` (catalog, longest name wins), `words` (rest of
   utterance). A slot's `parse(tokens, i)` returns candidates `[{ value, next }]`, longest first.
 
+- **Help** (`packs/help.mjs`, `Help.qml`): `help` / `help <topic>` emit one `help.show` action carrying
+  the rows (`listing.rows`) and topic names; `Executor.qml` summons the plugin's own overlay with that
+  descriptor as the payload (`shell.summon("vocon", json)`), and `Help.qml` only draws and filters it
+  (`listing.filterRows`, pure). `buildRegistry` tags every node with its `pack` and `topics`
+  (`[pack.id].concat(pack.help.groups)`), which is how rows are attributed after merging. A pack opts
+  in with `help: { title, words, groups }` (all optional); `help` itself is built from the pack list, so a
+  new pack is a topic with no change here. `ctx.registry` (set by `pipeline.interpret`) is how a
+  command reads the merged tree. Topics: pack ids, plus groups (`core` = hyprland, apps, keys,
+  dictation, help). Packs with no commands (an empty `custom`) are not topics. The menu is a
+  reference and runs nothing; it holds exclusive keyboard focus, so keystrokes injected by other
+  commands land in its filter, never in another app.
+
 ### Adding a pack (checklist)
-1. Write `plugin/core/commands/packs/<id>.mjs` (pure; `var`/functions; ES2017).
+1. Write `plugin/core/commands/packs/<id>.mjs` (pure; `var`/functions; ES2017). Give it a
+   `help: { title, ... }` so `help` shows a nice name; the topic itself is automatic.
 2. Register it in `packs/index.mjs`; add `<id>: {}` to `defaults.packs` in `config.mjs`.
 3. Tests: behaviour per context, safety cases, registry stays conflict-free (`registryErrors`),
    disable switch works. Extend `tests/qml/tst_core.qml` if it introduces new syntax or modules.
@@ -267,6 +280,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | `omarchy-launch-or-focus` **not** used directly (for now) | It needs the spoken word to equal class *and* binary, doesn't validate names, `eval`s its launch string, matches titles, and can't focus-only. We own `findWindow` + `app.launch` with a catalog instead. The considered alternative: discover apps from `DesktopEntries` and delegate to the script — deferred, not rejected on merit. |
 | Class-only window matching | Avoid browser-tab-titled-"Slack" false positives. |
 | `keys.send` via `wtype`, not Hyprland `send_shortcut` | Stuck-key quirk documented in Omarchy; `wtype` is already a VoxType dependency. |
+| `help` is a pack plus an overlay in the same plugin; rows travel in the effect | The menu has no registry of its own, so the pure core builds the rows and the shell only draws them (testable without Qt). Topics come from the pack list, not a hand-kept table. Considered and rejected: a `topic` slot type (no per-word fuzzy/alias matching, and not listed by `vocon-commands`); a separate Quickshell instance or `walker` (the shell's own overlay kind is already in-process and themed). Rows have no descriptions yet, only phrases, scope and argument hints: nodes carry no description text. |
 | Dictation as session state, single-shot, focus-bound | A later command must never be typed into a window; VoxType's own typing mode would collide with vocon's recording. |
 | Slack: scoped short forms + `slack …` navigation-only form | Hands-free from anywhere, but sending/deleting only on a window the user is looking at. |
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |
@@ -278,6 +292,10 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 
 ## Known limitations and backlog
 
+- `help`: rows show phrases only (no per-command description); topics are packs, so custom commands
+  are one `custom` topic rather than one per app class; typing in the live overlay was not exercised
+  by an automated test (filtering is unit-tested in the pure core, the menu was only opened and
+  screenshotted).
 - Slack: no "focus message field"; real-Slack behaviour of the shortcuts/timings is documented but
   was only verified against scratch windows. `message` depends on a Slack preference.
 - The match score logged for `open <app>` ignores alias/fuzzy matches *inside* the app name

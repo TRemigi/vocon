@@ -52,6 +52,7 @@ Item {
     hypr: hypr
     watchdog: watchdog
     dictationTimer: dictationTimer
+    shell: service.shell
   }
 
   ConfigStore {

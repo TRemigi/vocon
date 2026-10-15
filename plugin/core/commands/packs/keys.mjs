@@ -27,6 +27,7 @@ function presses(name, count) {
 
 export var keysPack = {
   id: "keys",
+  help: { title: "Keys", words: ["keyboard", "arrows"], groups: ["core"] },
 
   slotTypes: function (config) {
     return { count: numberSlot(options(config).maxCount, "number of presses") };

@@ -23,6 +23,7 @@ function catalog(config) {
 
 export var appsPack = {
   id: "apps",
+  help: { title: "Apps", words: ["applications"], groups: ["core"] },
 
   slotTypes: function (config) {
     return { app: appSlot(catalog(config), config.matching) };

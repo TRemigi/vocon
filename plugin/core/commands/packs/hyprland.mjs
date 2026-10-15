@@ -16,6 +16,7 @@ function options(config) {
 
 export var hyprlandPack = {
   id: "hyprland",
+  help: { title: "Workspaces", words: ["hyperland", "workspaces", "windows"], groups: ["core"] },
 
   slotTypes: function (config) {
     return { workspace: workspaceSlot(options(config).workspaces) };

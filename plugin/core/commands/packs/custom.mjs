@@ -27,6 +27,7 @@ function chain(entry) {
 
 export var customPack = {
   id: "custom",
+  help: { title: "Custom", words: ["mine", "user"] },
 
   commands: function (config) {
     return (config.commands || []).map(chain);

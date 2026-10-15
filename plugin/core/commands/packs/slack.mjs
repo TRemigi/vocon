@@ -92,6 +92,7 @@ function actions(o, finish) {
 
 export var slackPack = {
   id: "slack",
+  help: { title: "Slack" },
 
   slotTypes: function () {
     return { words: wordsSlot() };

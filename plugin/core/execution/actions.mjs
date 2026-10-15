@@ -36,3 +36,9 @@ export function keysAction(steps) {
 export function typeText(text) {
   return { type: "text.type", text: text };
 }
+
+// Open the filterable command menu. `rows` come from commands/listing.mjs (grammar and config
+// text only, never speech); `topics` are the names `help <topic>` accepts.
+export function helpShow(title, rows, topics) {
+  return { type: "help.show", title: title, rows: rows, topics: topics };
+}

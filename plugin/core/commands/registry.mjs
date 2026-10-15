@@ -67,13 +67,29 @@ export function validate(nodes, path) {
   return errors;
 }
 
+// Which packs are on for this config (shared with packs that build on the others, e.g. `help`).
+export function activePacks(packs, config) {
+  return packs.filter(function (pack) { return isEnabled(pack, config); });
+}
+
+// Every node remembers where it came from (`pack`, and the help `topics` that cover it), so the
+// listing can answer "which commands belong to Slack" after packs have been merged.
+function tag(node, pack) {
+  var groups = (pack.help && pack.help.groups) || [];
+  return Object.assign({}, node, {
+    pack: pack.id,
+    topics: [pack.id].concat(groups),
+    children: node.children.map(function (child) { return tag(child, pack); }),
+  });
+}
+
 export function buildRegistry(packs, config) {
-  var active = packs.filter(function (pack) { return isEnabled(pack, config); });
+  var active = activePacks(packs, config);
   var errors = [];
   var roots = [];
   var slotTypes = {};
   active.forEach(function (pack) {
-    roots = mergeList(roots, pack.commands(config), [], errors);
+    roots = mergeList(roots, pack.commands(config).map(function (node) { return tag(node, pack); }), [], errors);
     if (pack.slotTypes) Object.assign(slotTypes, pack.slotTypes(config));
   });
   return { roots: roots, slotTypes: slotTypes, errors: errors.concat(validate(roots)) };

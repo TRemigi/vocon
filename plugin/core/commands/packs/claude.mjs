@@ -160,6 +160,7 @@ function actions(o, finish) {
 
 export var claudePack = {
   id: "claude",
+  help: { title: "Claude Desktop" },
 
   slotTypes: function () {
     return { item: numberSlot(9, "menu item number"), words: wordsSlot() };

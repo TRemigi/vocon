@@ -11,6 +11,7 @@ import { wordsSlot } from "../../interpretation/slots.mjs";
 
 export var dictationPack = {
   id: "dictation",
+  help: { title: "Dictation", words: ["dictate"], groups: ["core"] },
 
   slotTypes: function () {
     return { words: wordsSlot() };
