@@ -161,3 +161,10 @@ test("the dictation pack alone supplies the slot, and can be disabled", () => {
   const none = parse('{"packs":{"dictation":{"enabled":false}}}').config;
   assert.deepEqual(typedText(utter(initialState(none), "dictate hello there").effects), []);
 });
+
+test("'input' is an alias for 'dictate': arms alone, types inline without the command word", () => {
+  assert.ok(utter(initialState(), "input").state.dictation);
+  assert.deepEqual(typedText(utter(initialState(), "Input, ship it.").effects), ["ship it."]);
+  assert.deepEqual(typedText(utter(initialState(), "input cancel").effects), []);
+  assert.deepEqual(typedText(utter(initialState(), "input you").effects), []);
+});

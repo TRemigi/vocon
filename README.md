@@ -244,8 +244,8 @@ alongside these (Slack's `message up` is separate). The recogniser sometimes hea
 
 | Say | Does |
 |---|---|
-| `dictate <text>` | types `<text>` into the focused window right away, in the same utterance. The word `dictate` itself is not typed |
-| `dictate` (alone) | the **next** time you hold the key, your speech is typed into the focused window instead of being treated as a command |
+| `dictate <text>` (or `input <text>`) | types `<text>` into the focused window right away, in the same utterance. The word `dictate` itself is not typed |
+| `dictate` / `input` (alone) | the **next** time you hold the key, your speech is typed into the focused window instead of being treated as a command |
 | `cancel` (as the dictated phrase) | cancels dictation |
 
 Dictation is deliberately constrained so words can't land somewhere unintended:
