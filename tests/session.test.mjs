@@ -145,3 +145,37 @@ test("unlocked again: the next utterance runs normally", () => {
   const second = run(first.state, { type: "PttPressed" }, { type: "PttReleased" }, transcript("space 1"), clients);
   assert.deepEqual(second.effects.filter((e) => e.type === "hypr.focusWorkspace"), [{ type: "hypr.focusWorkspace", workspace: 1 }]);
 });
+
+// --- privacy: speech is never written to a log line ---
+
+const logLines = (effects) => effects.filter((e) => e.type === "log").map((e) => e.message);
+
+test("log lines never contain what was said", () => {
+  const secret = "zebrasecret";
+  const cases = [
+    ["a misfire", `move ${secret}`],
+    ["free text after a command word", `dictation ${secret} hello`],
+    ["inline dictation", `dictate ${secret}`],
+  ];
+  for (const [name, text] of cases) {
+    const { effects } = run(initialState(), { type: "PttPressed" }, { type: "PttReleased" }, transcript(text), clients);
+    for (const line of logLines(effects)) assert.ok(!line.includes(secret), `${name}: ${line}`);
+  }
+});
+
+test("armed dictation logs only a length", () => {
+  const first = run(initialState(), { type: "PttPressed" }, { type: "PttReleased" }, transcript("dictate"), clients);
+  const { effects } = run(first.state, { type: "PttPressed" }, { type: "PttReleased" }, transcript("zebrasecret message"), clients);
+  assert.ok(effects.some((e) => e.type === "text.type"));
+  assert.deepEqual(logLines(effects), ["dictation: typed 19 characters"]);
+});
+
+test("the heard line reports the word count and the parse, not the words", () => {
+  const { effects } = run(initialState(), { type: "PttPressed" }, { type: "PttReleased" }, transcript("move banana"), clients);
+  assert.deepEqual(logLines(effects), ["heard 2 word(s) -> nomatch after “move”"]);
+});
+
+test("a matched command logs its id and score only", () => {
+  const { effects } = run(initialState(), { type: "PttPressed" }, { type: "PttReleased" }, transcript("Space 1."), clients);
+  assert.match(logLines(effects)[0], /^heard 2 word\(s\) -> matched space \(score 1\.00\)$/);
+});

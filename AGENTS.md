@@ -101,7 +101,13 @@ phrases. Example: `move focused space 1` = `move` → `focused` → `space` → 
    press Enter).
 3. **Dictated text is arbitrary**, so it goes `sh -c 'printf %s "$1" | wtype -'` (stdin, one
    argument), is flattened (newlines → spaces; a newline would press Enter) and trimmed, and
-   **is never logged** — only its length.
+   **is never logged** — only its length. More broadly, **no speech is logged or written to a file
+   by vocon**: the `heard` line carries the word count, outcome kind, command id and grammar path
+   (`heardLine` in `session.mjs`), never words (a misfire or background talk is as sensitive as
+   dictation); `Voxtype.qml` deletes `vocon-utterance.txt` after reading the result, on cancel, before
+   each recording and at startup. Test: "log lines never contain what was said". Outside our control:
+   failure toasts quote the transcript and Omarchy persists the last 10 notifications; VoxType logs
+   transcripts to its journal.
 4. **Destructive or sending commands exist only in the focused-app form.** `send`, `edit`,
    `delete`, `confirm` work only while Slack is focused; the `slack …` from-anywhere form is
    navigation only. `delete` only opens Slack's confirmation; `confirm` accepts it. Keep new
@@ -178,7 +184,8 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 - **`Process.onExited` can fire before `StdioCollector` has its text.** Never read output in
   `onExited`; use `infra/Run.qml` (reports once the process exited *and* streams drained).
 - Config lives in `~/.config/vocon/config.json` (JSON, hot-reloaded via `FileView`). Logs:
-  `qs log -p /usr/share/omarchy/shell | grep vocon:` (transcripts appear as `vocon: heard "…"`).
+  `qs log -p /usr/share/omarchy/shell | grep vocon:` (the log shows outcomes only, never transcripts; to see what was heard use the failure
+  notification, or `journalctl --user -u voxtype`).
 
 **VoxType**
 - Text comes back to a caller with `voxtype record start --file=<path> --no-osd` then

@@ -69,6 +69,16 @@ function refuse(state) {
   ]);
 }
 
+// What the log says about an utterance. Speech is never logged (it can be anything: a misfired press,
+// background talk, text meant for dictation); only the word count and what the parser did with it.
+// `path` and `candidates` are grammar words from the command tree, never heard words.
+function heardLine(transcript, outcome) {
+  var line = "heard " + normalize(transcript).length + " word(s) -> " + outcome.kind;
+  if (outcome.commandId) line += " " + outcome.commandId + " (score " + outcome.score.toFixed(2) + ")";
+  if (outcome.kind !== "matched" && outcome.path && outcome.path.length) line += " after \u201c" + outcome.path.join(" ") + "\u201d";
+  return line;
+}
+
 // Dictation: `dictate` arms it; the next utterance is typed into the focused window instead of being
 // interpreted. It is single-shot and stays armed only until it expires, is cancelled, or the
 // focused window changes, so a later command can never be typed into the wrong place.
@@ -129,8 +139,7 @@ function complete(state) {
     return dictateInline(state);
   }
   var feedback = state.config.feedback;
-  var effects = [{ type: "watchdog.disarm" }, log("heard \"" + state.transcript + "\" -> " + outcome.kind +
-    (outcome.commandId ? " " + outcome.commandId + " (score " + outcome.score.toFixed(2) + ")" : ""))];
+  var effects = [{ type: "watchdog.disarm" }, log(heardLine(state.transcript, outcome))];
 
   if (outcome.kind === "matched") {
     var arm = interpreted.actions.some(function (a) { return a.type === "dictation.arm"; });

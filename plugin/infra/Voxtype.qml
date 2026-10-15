@@ -3,6 +3,8 @@
 // - start first refuses while the screen is locked (`refused`), then checks the daemon is up and free first (never touches someone else's recording),
 //   then confirms ~0.8 s later that it really began recording (`record start` exits 0 even
 //   when the daemon then fails to open the mic).
+// - the transcript file VoxType writes (`utterancePath`) is deleted as soon as the result has been
+//   read, on cancel, before each recording and at startup, so speech never lingers on disk.
 // - stop waits for start to have finished so the daemon sees the signals in order.
 
 import QtQuick
@@ -29,6 +31,7 @@ Item {
   property bool _showOsd: true
 
   function start(model, showOsd) {
+    root._scrub()
     root._starting = true
     root._released = false
     root._model = model || ""
@@ -49,7 +52,14 @@ Item {
   function cancel() {
     root._stopPending = false
     cancelRun.run(["voxtype", "record", "cancel"])
+    root._scrub()
   }
+
+  function _scrub() {
+    scrubRun.run(["rm", "-f", "--", root.utterancePath])
+  }
+
+  Component.onCompleted: root._scrub()
 
   // Never run `stop` after a failed start: it could end someone else's recording.
   function _abortStart(message) {
@@ -129,6 +139,7 @@ Item {
   Run {
     id: stopRun
     onFinished: function(code, out, err) {
+      root._scrub()
       var result = null
       try { result = JSON.parse(out.trim()) } catch (e) { result = null }
 
@@ -140,4 +151,5 @@ Item {
   }
 
   Run { id: cancelRun }
+  Run { id: scrubRun }
 }

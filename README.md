@@ -139,7 +139,7 @@ omarchy-shell vocon status                  # -> idle
 omarchy-shell vocon simulate "space 2"      # runs the real pipeline: workspace 2 is focused
 omarchy-shell vocon simulate "space 1"      # and back
 qs log -p /usr/share/omarchy/shell | grep vocon:
-# vocon: heard "space 2" -> matched space (score 1.00)
+# vocon: heard 2 word(s) -> matched space (score 1.00)
 ```
 
 `simulate` feeds text through exactly the same path as a spoken command, **including running the
@@ -231,7 +231,7 @@ Dictation is deliberately constrained so words can't land somewhere unintended:
 
 - It is **single-shot**: after one utterance is typed, vocon goes back to commands.
 - `dictate <text>` is typed as you said it (capitalisation and punctuation kept). Like all dictated
-  text it is never logged or shown in a notification.
+  text it is never logged or shown in a notification (see [Privacy](#privacy)).
 - It **expires** after 30 seconds (`dictation.armSeconds`).
 - It is **discarded if the focused window changes** between saying `dictate` and speaking.
 - Things Whisper makes up from silence ("Thank you for watching") are never typed
@@ -458,8 +458,8 @@ Minimal example:
 Most misrecognition is audio, not the model. In rough order of payoff:
 
 1. **Record from a non-Bluetooth microphone** ([step 2](#2-choose-your-microphone)). Check what was
-   heard with `qs log -p /usr/share/omarchy/shell | grep "vocon: heard"`.
-2. **Add aliases for words you see mis-heard.** If you say "claude" and it logs "cloud", add
+   heard from the "Didn't understand" notification, which quotes the transcript (the vocon log does not).
+2. **Add aliases for words you see mis-heard.** If you say "claude" and the notification shows "cloud", add
    `"matching": { "aliases": { "claude": ["cloud"] } }`. The key is the word in your app name or
    command; the list is what the recogniser produced.
 3. **Use a larger model.** `base.en` is the smallest. Try `small.en` via `voxtype setup model`.
@@ -520,12 +520,29 @@ hardware will differ.
 
 - Different engines format text differently (capitalisation, punctuation, "1" versus "one", how
   names are spelled). vocon normalises transcripts, but you may need to add or adjust
-  [aliases](#improving-recognition) for words that are now misheard. `qs log -p
-  /usr/share/omarchy/shell | grep "vocon: heard"` shows what the engine produced.
+  [aliases](#improving-recognition) for words that are now misheard. The "Didn't understand"
+  notification shows what the engine produced.
 - Speech-to-text stays local with every engine. VoxType downloads the model files once, and
   transcription itself doesn't use the network.
 - vocon doesn't care which engine is running. It calls VoxType the same way for all of them, so
   nothing in vocon's config changes.
+
+## Privacy
+
+vocon keeps no record of what you say, and nothing it controls stores a transcript:
+
+- **Its log** (`qs log ... | grep vocon:`) holds the word count and the outcome only, e.g.
+  `heard 3 word(s) -> nomatch after “move”`. Dictated text is not logged, only its length.
+- **The transcript file** VoxType writes for vocon (`$XDG_RUNTIME_DIR/vocon-utterance.txt`) is
+  deleted as soon as the result has been read, on cancel, before each recording, and when the
+  plugin starts.
+- **Dictated text** is typed through a pipe and never appears in a notification.
+
+Two things outside vocon do keep text, and vocon can't turn them off:
+
+- A "Didn't understand" notification quotes what was heard, and Omarchy keeps its last 10
+  notifications on disk (`~/.local/state/omarchy/notifications/history/`).
+- VoxType logs every transcript to its own journal (`journalctl --user -u voxtype`) at INFO level.
 
 ## Troubleshooting
 
@@ -578,7 +595,7 @@ left installed (`omarchy-voxtype-remove` removes it).
 | `omarchy-shell vocon status` | `idle`, `listening` or `transcribing`. |
 | `omarchy-shell vocon dictation` | `armed` or `off`. |
 | `omarchy-shell vocon simulate "<text>"` | Run text through the real pipeline, **executing the actions for real**. |
-| `qs log -p /usr/share/omarchy/shell \| grep vocon:` | What vocon heard and decided. |
+| `qs log -p /usr/share/omarchy/shell \| grep vocon:` | What vocon decided: word count, outcome, command id; never the words (see [Privacy](#privacy)). |
 
 ## Development
 
