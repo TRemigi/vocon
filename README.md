@@ -192,7 +192,7 @@ low-priority "Voice commands are off" notification.
 | `help` | open a filterable menu of every command |
 | `help <topic>` | the same menu, for one topic |
 
-Topics: `core` (the built-in commands: workspaces, apps, arrow keys, dictation), one for each app
+Topics: `core` (the built-in commands: workspaces, apps, arrow keys and enter, dictation), one for each app
 pack (`slack`, `claude`), `custom` (your own commands, once you have some), and the built-in packs
 by name (`hyprland` also answers to `workspaces` or `windows`, `keys` to `keyboard`, `apps` to
 `applications`). Disabled packs are not topics. The footer of the menu lists what you can ask for.
@@ -228,12 +228,13 @@ Built-in apps: `terminal`, `browser`, `files` (or `nautilus`), `spotify`, `obsid
 in the [app catalog](#app-catalog). `open terminal` focuses the terminal you already have; for a
 second one, add a command (see [custom commands](#custom-commands)).
 
-### Arrow keys
+### Arrow keys and Enter
 
 | Say | Does |
 |---|---|
 | `up`, `down`, `left`, `right` | press that arrow key once in the focused window |
 | `down three`, `up 5` | press it that many times (digit or number word) |
+| `enter` | press Enter once in the focused window (no count: it submits and confirms) |
 
 Works in any window. The count is 1-20; a larger or unrecognised count does nothing rather than
 guess. Change the limit with `packs.keys.maxCount` (never above 100). Apps keep their own commands

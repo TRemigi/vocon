@@ -1,7 +1,8 @@
-// Commands: arrow keys, in whatever window is focused. Pure; ES2017-conservative.
+// Commands: arrow keys and Enter, in whatever window is focused. Pure; ES2017-conservative.
 //
 //   up | down | left | right            press the arrow once
 //   down three | down 3                  press it that many times (1 to packs.keys.maxCount)
+//   enter                                press Return once (no count: Enter submits and confirms)
 //
 // Not tied to an app, so these work everywhere; app packs add their own scoped commands.
 
@@ -34,10 +35,12 @@ export var keysPack = {
   },
 
   commands: function () {
-    return Object.keys(ARROWS).map(function (word) {
+    var arrows = Object.keys(ARROWS).map(function (word) {
       return command(word, { run: function () { return presses(ARROWS[word], 1); } }, [
         value("count", "count", { run: function (args) { return presses(ARROWS[word], args.count); } }),
       ]);
     });
+    var enter = command("enter", { run: function () { return presses("Return", 1); } });
+    return arrows.concat([enter]);
   },
 };

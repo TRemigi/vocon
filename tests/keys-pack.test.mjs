@@ -78,8 +78,21 @@ test("a mishearing of the count never presses anything", () => {
   assert.deepEqual(say("down dev").actions, []);
 });
 
+test("enter presses Return once, in any window, and takes no count", () => {
+  for (const clients of [inTerminal, inSlack, inClaude, nothing]) {
+    assert.deepEqual(keys("enter", clients), ["-k Return"]);
+  }
+  assert.deepEqual(keys("Enter."), ["-k Return"]);
+  for (const text of ["enter three", "enter 2", "enter enter"]) {
+    const r = say(text);
+    assert.equal(r.outcome.kind, "nomatch", text);
+    assert.deepEqual(r.actions, [], text);
+  }
+});
+
 test("the keys pack can be disabled", () => {
   const { config } = parse('{"packs":{"keys":{"enabled":false}}}');
   assert.equal(say("down", inTerminal, config).outcome.kind, "nomatch");
   assert.equal(say("down three", inTerminal, config).outcome.kind, "nomatch");
+  assert.equal(say("enter", inTerminal, config).outcome.kind, "nomatch");
 });
