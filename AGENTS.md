@@ -63,14 +63,14 @@ Hyprland key press/release
 ## The command model (decided in slice 2; do not regress)
 
 Commands are **CLI-like**: a command word, then arguments, parsed left to right — not free-form
-phrases. Example: `move focused space 1` = `move` → `focused` → `space` → `<workspace>`.
+phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
 
 - The command set is a **tree of nodes** (`commands/dsl.mjs`): `command`/`keyword(name, opts,
   children)` and `value(name, slotType, opts)`. A node with `run(args, ctx, path) -> actions` is a
   valid end of a command. Options: `words` (synonyms), `when(ctx)`, `run`.
 - **`parser.mjs` resolves one token per level against only that node's children.** No
   backtracking, no scoring of whole phrases against each other. Consequently commands cannot
-  "compete"; future arguments (`move all`, `move focused group dev`) are just more nodes.
+  "compete"; future arguments (`move all`, `move group dev`) are just more nodes.
 - **Misrecognition is handled per word**, via `words.mjs`: exact (1) > alias (0.9, from
   `config.matching.aliases`) > fuzzy (similarity >= `matching.threshold`, only words >= 4 chars).
   Aliases are keyed by the *command word* and map to what the recogniser tends to produce
@@ -286,6 +286,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |
 | Arrow keys are a built-in `keys` pack, not a core change | "Core" is read as "global, not app-scoped": the rule is that features arrive as packs. `up/down/left/right [count]` work in any window; the count slot is capped (`packs.keys.maxCount`, default 20, hard cap 100) so a mishearing can't hold a key down. `enter` is there too: a single press with no count, because repeated Enter submits/confirms. More global keys (home, end, tab) belong in this pack. |
 | Lock gate lives in the reducer, probe at the edge; fail closed | Policy ("locked -> refuse") is pure and table-tested; only the fact comes from a process. Considered and rejected: relying on Hyprland not delivering unflagged binds while locked (doesn't cover `simulate`, a recording started before the lock, or armed dictation); a polled/cached lock flag (stale at the moment that matters). |
+| `move` acts on the focused window without saying `focused`: `move space <n>`, `move left|right|up|down` | The owner wanted the shorter form; `move focused space <n>` was dropped, not kept as a second path (it would list twice). Directions are `hl.dsp.window.swap` (Omarchy's SUPER+SHIFT+arrows): swap with the neighbour, no layout change. |
 | Dropped `send` as a synonym of `move` | Collided with Slack's `send`. |
 | Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. The app has no tab shortcut, so `tab home|code` goes through the command palette with fixed text. `session <name>` types *spoken* text into that palette, which also holds commands, so it is focused-only and `packs.claude.sessionSubmit: false` leaves Enter to the user (the palette is a second command interpreter; keep speech-fed palette use navigation-scoped). |
 | `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |

@@ -97,7 +97,7 @@ test("sending, editing and deleting are never available from other apps", () => 
 test("built-in commands still work, in and out of Slack", () => {
   for (const clients of [inSlack, inTerminal]) {
     assert.equal(say("space 2", clients).actions[0].type, "hypr.focusWorkspace");
-    assert.equal(say("move focused space 2", clients).actions[0].type, "hypr.moveWindowToWorkspace");
+    assert.equal(say("move space 2", clients).actions[0].type, "hypr.moveWindowToWorkspace");
   }
 });
 

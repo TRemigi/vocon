@@ -147,7 +147,7 @@ test("choose only accepts menu items 1 to 9, and never from the browser pane (re
 test("built-in commands still work, in and out of Claude Desktop", () => {
   for (const clients of [inClaude, inTerminal]) {
     assert.equal(say("space 2", clients).actions[0].type, "hypr.focusWorkspace");
-    assert.equal(say("move focused space 2", clients).actions[0].type, "hypr.moveWindowToWorkspace");
+    assert.equal(say("move space 2", clients).actions[0].type, "hypr.moveWindowToWorkspace");
   }
 });
 

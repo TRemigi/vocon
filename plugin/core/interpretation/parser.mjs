@@ -1,6 +1,6 @@
 // Interpretation: parse tokens against the command tree, CLI-style. Pure; ES2017-conservative.
 //
-//   move focused space 1      ->  path [move, focused, space], args { n: 1 }
+//   move space 1              ->  path [move, space], args { n: 1 }
 //
 // The tree is nodes { kind: "keyword"|"value", name, words, children, run?, when? }.
 // Each token is resolved against the current node's children only: keyword children by word

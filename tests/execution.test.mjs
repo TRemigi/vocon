@@ -22,6 +22,18 @@ test("workspace must be a positive integer", () => {
   assert.throws(() => toArgv(A.focusWorkspace(0)), /invalid workspace/);
 });
 
+test("swapWindow maps spoken directions to Hyprland's", () => {
+  for (const [word, d] of [["left", "l"], ["right", "r"], ["up", "u"], ["down", "d"]]) {
+    assert.deepEqual(toArgv(A.swapWindow(word)), ["hyprctl", "dispatch", `hl.dsp.window.swap({ direction = "${d}" })`]);
+  }
+});
+
+test("swapWindow rejects anything but the four directions", () => {
+  for (const bad of ["l", "diagonal", 'left" })', "", undefined, "constructor", "__proto__"]) {
+    assert.throws(() => toArgv(A.swapWindow(bad)), /invalid direction/, String(bad));
+  }
+});
+
 test("non-hyprland actions are left alone", () => {
   assert.equal(toArgv(A.exec(["true"])), null);
 });

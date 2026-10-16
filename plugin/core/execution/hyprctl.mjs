@@ -18,6 +18,13 @@ function assertAddress(address) {
   return address;
 }
 
+var DIRECTIONS = { left: "l", right: "r", up: "u", down: "d" };
+
+function assertDirection(direction) {
+  if (!Object.prototype.hasOwnProperty.call(DIRECTIONS, direction)) throw new Error("invalid direction: " + direction);
+  return DIRECTIONS[direction];
+}
+
 // Returns argv for a Hyprland action, or null when the action isn't a Hyprland one.
 export function toArgv(action) {
   switch (action.type) {
@@ -28,6 +35,8 @@ export function toArgv(action) {
         'hl.dsp.window.move({ workspace = "' + assertWorkspace(action.workspace) + '"' +
           (action.follow === false ? ", follow = false" : "") + " })"
       );
+    case "hypr.swapWindow":
+      return dispatch('hl.dsp.window.swap({ direction = "' + assertDirection(action.direction) + '" })');
     case "hypr.focusWindow":
       return dispatch('hl.dsp.focus({ window = "address:' + assertAddress(action.address) + '" })');
     default:

@@ -22,7 +22,7 @@ TestCase {
   }
 
   function test_pipeline_move_focused_space_one() {
-    var r = Pipeline.interpret(Config.defaults, { clients: [] }, "Move focused space 1.")
+    var r = Pipeline.interpret(Config.defaults, { clients: [] }, "Move space 1.")
     compare(r.outcome.kind, "matched")
     compare(r.actions.length, 1)
     compare(r.actions[0].type, "hypr.moveWindowToWorkspace")

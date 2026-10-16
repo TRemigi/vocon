@@ -9,6 +9,11 @@ export function moveWindowToWorkspace(workspace, follow) {
   return { type: "hypr.moveWindowToWorkspace", workspace: workspace, follow: follow !== false };
 }
 
+// direction: "left" | "right" | "up" | "down"; swaps the focused window with its neighbour.
+export function swapWindow(direction) {
+  return { type: "hypr.swapWindow", direction: direction };
+}
+
 export function focusWindow(address) {
   return { type: "hypr.focusWindow", address: address };
 }

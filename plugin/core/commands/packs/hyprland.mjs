@@ -1,11 +1,13 @@
 // Commands: built-in Hyprland pack. Pure; ES2017-conservative.
 //
 //   space <n>                    focus workspace n
-//   move focused space <n>       move the focused window to workspace n
+//   move space <n>               move the focused window to workspace n
+//   move left|right|up|down      swap the focused window with its neighbour in that direction
 //
-// Future arguments slot in as sibling nodes, e.g. `move all space <n>`, `move focused group <name>`.
+// `move` always acts on the focused window. Future arguments slot in as sibling nodes,
+// e.g. `move all space <n>`, `move group <name>`.
 
-import { focusWorkspace, moveWindowToWorkspace } from "../../execution/actions.mjs";
+import { focusWorkspace, moveWindowToWorkspace, swapWindow } from "../../execution/actions.mjs";
 import { workspaceSlot } from "../../interpretation/slots.mjs";
 import { command, keyword, value } from "../dsl.mjs";
 
@@ -31,14 +33,14 @@ export var hyprlandPack = {
       ]),
 
       command("move", {}, [
-        keyword("focused", { words: ["focus", "current"] }, [
-          keyword("space", { words: ["workspace"] }, [
-            value("n", "workspace", {
-              run: function (args) { return [moveWindowToWorkspace(args.n, options(config).moveFollows)]; },
-            }),
-          ]),
+        keyword("space", { words: ["workspace"] }, [
+          value("n", "workspace", {
+            run: function (args) { return [moveWindowToWorkspace(args.n, options(config).moveFollows)]; },
+          }),
         ]),
-      ]),
+      ].concat(["left", "right", "up", "down"].map(function (direction) {
+        return keyword(direction, { run: function () { return [swapWindow(direction)]; } });
+      }))),
     ];
   },
 };

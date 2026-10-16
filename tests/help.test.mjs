@@ -42,7 +42,7 @@ test("every app pack gets a topic, and `core` covers the built-in commands", () 
   assert.ok(claude.rows.length > 0 && claude.rows.every((r) => r.topic === "Claude Desktop"));
 
   const core = help("help core").action;
-  for (const p of ["space <n>", "move focused space <n>", "open <app>", "focus <app>", "dictate"]) assert.ok(phrases(core).includes(p), p);
+  for (const p of ["space <n>", "move space <n>", "move left", "open <app>", "focus <app>", "dictate"]) assert.ok(phrases(core).includes(p), p);
   assert.ok(core.rows.some((r) => r.phrase.startsWith("up")), "arrow keys are core");
   assert.ok(!phrases(core).includes("send"));
   assert.ok(!phrases(core).includes("slack channel <name>"));
@@ -135,9 +135,9 @@ const allRows = rows(describe(buildRegistry(builtinPacks, defaults)), { hyprland
 test("filter: every word must appear, in any order and case", () => {
   assert.deepEqual(filterRows(allRows, "").length, allRows.length);
   assert.deepEqual(filterRows(allRows, "   ").length, allRows.length);
-  const hits = filterRows(allRows, "FOCUSED move");
-  assert.ok(hits.some((r) => r.phrase === "move focused space <n>"));
-  assert.ok(hits.every((r) => /move/.test(r.search) && /focused/.test(r.search)));
+  const hits = filterRows(allRows, "SPACE move");
+  assert.ok(hits.some((r) => r.phrase === "move space <n>"));
+  assert.ok(hits.every((r) => /move/.test(r.search) && /space/.test(r.search)));
   assert.deepEqual(filterRows(allRows, "zzzz"), []);
 });
 

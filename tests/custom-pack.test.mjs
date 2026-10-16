@@ -47,8 +47,8 @@ test("a custom command can extend a built-in one", () => {
   const { config } = cfg([{ say: "move all", exec: ["x"] }]);
   assert.deepEqual(registryErrors(config), []);
   assert.deepEqual(say(config, "move all").actions, [{ type: "exec", argv: ["x"] }]);
-  assert.equal(say(config, "move focused space 2").actions[0].type, "hypr.moveWindowToWorkspace");
-  assert.deepEqual(say(config, "move").outcome.expected, ["focused", "all"]);
+  assert.equal(say(config, "move space 2").actions[0].type, "hypr.moveWindowToWorkspace");
+  assert.deepEqual(say(config, "move").outcome.expected, ["space", "left", "right", "up", "down", "all"]);
 });
 
 test("a custom keyword beats a value argument (open notes vs open <app>)", () => {

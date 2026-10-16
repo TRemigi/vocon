@@ -19,7 +19,7 @@ const extensionPack = {
   commands: () => [
     command("move", {}, [
       keyword("all", {}, [keyword("space", { words: ["workspace"] }, [value("n", "workspace", leaf("move-all"))])]),
-      keyword("focused", {}, [keyword("group", {}, [value("n", "workspace", leaf("move-group"))])]),
+      keyword("group", {}, [value("n", "workspace", leaf("move-group"))]),
     ]),
   ],
 };
@@ -29,11 +29,11 @@ const say = (text) => interpret(defaults, {}, text, packs);
 test("a later pack extends an existing command without touching the first", () => {
   assert.deepEqual(registryErrors(defaults, packs), []);
   assert.equal(say("move all space 2").actions[0].tag, "move-all");
-  assert.equal(say("move focused group 3").actions[0].tag, "move-group");
+  assert.equal(say("move group 3").actions[0].tag, "move-group");
   // the original branch still works, and sees the merged siblings
-  assert.equal(say("move focused space 4").actions[0].type, "hypr.moveWindowToWorkspace");
-  assert.deepEqual(say("move").outcome.expected, ["focused", "all"]);
-  assert.deepEqual(say("move focused").outcome.expected, ["space", "group"]);
+  assert.equal(say("move space 4").actions[0].type, "hypr.moveWindowToWorkspace");
+  assert.deepEqual(say("move").outcome.expected, ["space", "left", "right", "up", "down", "all", "group"]);
+  assert.deepEqual(say("move all").outcome.expected, ["space"]);
 });
 
 test("registry reports a command defined twice, keeps the first", () => {

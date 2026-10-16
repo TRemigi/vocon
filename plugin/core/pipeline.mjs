@@ -16,7 +16,7 @@ export function registryErrors(config, packs) {
 // focused window) is derived from clients and is what `when(ctx)` conditions look at; `registry` is
 // the merged command tree (for `help`).
 // outcome.kind: "empty" | "matched" | "incomplete" | "nomatch" | "ambiguous"
-// (see interpretation/parser.mjs); matched outcomes carry commandId ("move focused space"),
+// (see interpretation/parser.mjs); matched outcomes carry commandId ("move space"),
 // args and score.
 export function interpret(config, ctx, transcript, packs) {
   var tokens = normalize(transcript);

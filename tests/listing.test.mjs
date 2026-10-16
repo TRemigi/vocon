@@ -13,7 +13,7 @@ const lines = (config, options) => render(describe(buildRegistry(builtinPacks, c
 
 test("lists every runnable path, with arguments shown by name", () => {
   const out = lines(defaults);
-  for (const phrase of ["space <n>", "move focused space <n>", "open <app>", "focus <app>", "dictate"]) {
+  for (const phrase of ["space <n>", "move space <n>", "move left", "move right", "move up", "move down", "open <app>", "focus <app>", "dictate"]) {
     assert.ok(out.includes("  " + phrase), phrase);
   }
   // a node with children and a run is listed both bare and extended

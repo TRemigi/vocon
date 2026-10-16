@@ -8,13 +8,14 @@ or run your own commands.
 
 ```
 hold F10:   "space 2"                        ->  workspace 2 is focused
-hold F10:   "move focused space 1"           ->  the focused window moves to workspace 1
+hold F10:   "move space 1"                   ->  the focused window moves to workspace 1
+hold F10:   "move left"                      ->  the focused window swaps places with its left neighbour
 hold F10:   "open slack"                     ->  Slack is focused, or started if it isn't running
 hold F10:   "slack channel dev platform"     ->  jumps to #dev-platform in Slack
 hold F10:   "dictate Hi team..."             ->  "Hi team..." is typed into the focused window
 ```
 
-Commands are CLI-like (`move focused space 1`), not free-form sentences, so they are predictable,
+Commands are CLI-like (`move space 1`), not free-form sentences, so they are predictable,
 and new ones are easy to add.
 
 **Contents:** [How it works](#how-it-works) · [Requirements](#requirements) ·
@@ -149,7 +150,7 @@ so try it with harmless commands first.
 ### 6. Try it by voice
 
 Hold F10, wait a beat, say **"space 2"**, release. Workspace 2 should focus. Then try
-"move focused space 1" and "open terminal". If something is off, see
+"move space 1" and "open terminal". If something is off, see
 [Troubleshooting](#troubleshooting).
 
 ## Using vocon
@@ -158,7 +159,7 @@ Hold F10, wait a beat, say **"space 2"**, release. Workspace 2 should focus. The
 the command, release. How long recognition takes depends on VoxType's engine, from about a second
 on a CPU-only Whisper setup to a fraction of a second; see [Performance](#performance).
 
-**Speak commands in order, without filler.** `move focused space 1`, not "please move the focused
+**Speak commands in order, without filler.** `move space 1`, not "please move the focused
 window to space one". Numbers can be digits or words ("space 3" / "space three"). Words that sound
 like numbers ("to", "for", "won") are accepted where a number is expected.
 
@@ -211,9 +212,12 @@ another app. For a terminal, `bin/vocon-commands` prints the same list.
 | Say | Does |
 |---|---|
 | `space <n>` (or `workspace <n>`) | focus workspace n |
-| `move focused space <n>` | move the focused window to workspace n **and follow it** |
+| `move space <n>` | move the focused window to workspace n **and follow it** |
+| `move left`, `move right`, `move up`, `move down` | swap the focused window with its neighbour in that direction, within the current workspace |
 
-`<n>` is 1-10. `focused` also accepts `focus` and `current`; `space` also accepts `workspace`.
+`<n>` is 1-10; `space` also accepts `workspace`. `move` always acts on the focused window. The
+directional form is Hyprland's window swap (the same as Omarchy's SUPER+SHIFT+arrows), so it swaps
+places with the window beside it rather than reshaping the layout.
 To move a window without following it, set `packs.hyprland.moveFollows` to `false`. Change the
 workspace count with `packs.hyprland.workspaces`.
 
@@ -445,7 +449,7 @@ conflict) are reported and only that entry is skipped.
 | `feedback.notifyOnSuccess` | `false` | Notify with the transcript on every successful command. |
 | `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`, `help`. |
 | `packs.hyprland.workspaces` | `10` | Highest workspace number you can say. |
-| `packs.hyprland.moveFollows` | `true` | Whether `move focused space n` also switches to that workspace. |
+| `packs.hyprland.moveFollows` | `true` | Whether `move space n` also switches to that workspace. |
 | `packs.keys.maxCount` | `20` | Most presses an arrow command accepts (`down 20`). Capped at 100. |
 | `packs.slack.match` | `"^slack$"` | Regex for the Slack window class. |
 | `packs.slack.send` | `"Return"` | Key `send` presses (`"ctrl+Return"` for Ctrl+Enter). |
@@ -487,7 +491,7 @@ Most misrecognition is audio, not the model. In rough order of payoff:
 3. **Use a larger model.** `base.en` is the smallest. Try `small.en` via `voxtype setup model`.
 4. **Use the GPU.** `voxtype setup gpu --enable` (Vulkan) makes larger models fast.
 5. **Bias the vocabulary** with VoxType's Whisper prompt, e.g.
-   `voxtype config set whisper.initial_prompt "Commands: space 1, workspace 2, move focused space 3, open Slack."`
+   `voxtype config set whisper.initial_prompt "Commands: space 1, workspace 2, move space 3, open Slack."`
    then `systemctl --user restart voxtype`. This is a nudge, not a guarantee, and it also applies
    to VoxType's own dictation.
 6. **Wait a beat** after pressing the key before you speak; VoxType takes a fraction of a second
