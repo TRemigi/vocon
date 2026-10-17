@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { defaults, fromObject } from "../plugin/core/config.mjs";
-import { buildRegistry } from "../plugin/core/commands/registry.mjs";
-import { builtinPacks } from "../plugin/core/commands/packs/index.mjs";
-import { describe, rows, filterRows } from "../plugin/core/commands/listing.mjs";
-import { initialState, reduce } from "../plugin/core/listening/session.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { defaults, fromObject } from "../core/config.mjs";
+import { buildRegistry } from "../core/commands/registry.mjs";
+import { builtinPacks } from "../core/commands/packs/index.mjs";
+import { describe, rows, filterRows } from "../core/commands/listing.mjs";
+import { initialState, reduce } from "../core/listening/session.mjs";
 
 const help = (text, config = defaults) => {
   const r = interpret(config, { clients: [] }, text);
@@ -99,7 +99,7 @@ test("a pack added later becomes a topic with no change to help", () => {
   };
   const packs = builtinPacks.slice(0, -1).concat([extra, builtinPacks[builtinPacks.length - 1]]);
   // the help pack was built from the original list, so rebuild it from the new one
-  return import("../plugin/core/commands/packs/help.mjs").then(({ makeHelpPack }) => {
+  return import("../core/commands/packs/help.mjs").then(({ makeHelpPack }) => {
     const all = packs.slice(0, -1);
     const withHelp = all.concat([makeHelpPack(all)]);
     const r = interpret(defaults, { clients: [] }, "help notes", withHelp);

@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { parse, defaults } from "../plugin/core/config.mjs";
-import { activeWindow, classMatches } from "../plugin/core/execution/windows.mjs";
-import { initialState, reduce } from "../plugin/core/listening/session.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { parse, defaults } from "../core/config.mjs";
+import { activeWindow, classMatches } from "../core/execution/windows.mjs";
+import { initialState, reduce } from "../core/listening/session.mjs";
 
 const win = (address, cls, focusHistoryID) => ({ address, class: cls, title: "", mapped: true, focusHistoryID });
 const clients = [win("0x1", "com.mitchellh.ghostty", 0), win("0x2", "firefox", 1), win("0x3", "slack", 2)];

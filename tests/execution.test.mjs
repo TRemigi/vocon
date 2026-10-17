@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toArgv } from "../plugin/core/execution/hyprctl.mjs";
-import * as A from "../plugin/core/execution/actions.mjs";
+import { toArgv } from "../core/execution/hyprctl.mjs";
+import * as A from "../core/execution/actions.mjs";
 
 test("focus workspace -> hl.dsp.focus", () => {
   assert.deepEqual(toArgv(A.focusWorkspace(3)), ["hyprctl", "dispatch", 'hl.dsp.focus({ workspace = "3" })']);

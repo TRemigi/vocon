@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initialState, reduce } from "../plugin/core/listening/session.mjs";
-import { parse, defaults } from "../plugin/core/config.mjs";
-import { toArgv } from "../plugin/core/execution/keys.mjs";
+import { initialState, reduce } from "../core/listening/session.mjs";
+import { parse, defaults } from "../core/config.mjs";
+import { toArgv } from "../core/execution/keys.mjs";
 
 const win = (address, cls, focus) => ({ address, class: cls, title: "", mapped: true, focusHistoryID: focus });
 const slackFocused = [win("0x1", "slack", 0), win("0x2", "ghostty", 1)];

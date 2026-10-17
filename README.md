@@ -106,6 +106,25 @@ VoxType pauses media players for the duration of every recording.
 
 ### 3. Install the vocon plugin
 
+The standard way, using Omarchy's own plugin manager:
+
+```sh
+omarchy plugin add https://github.com/TRemigi/vocon.git --enable
+```
+
+This clones the repository into `~/.config/omarchy/plugins/vocon/`, validates it, and enables it.
+No config file is needed to start: vocon runs on its defaults until you create
+`~/.config/vocon/config.json` (see [Configuration](#configuration); copy
+`config/config.example.json` from the plugin folder as a starting point). In the steps below,
+`bin/...` means that folder:
+
+```sh
+cd ~/.config/omarchy/plugins/vocon
+```
+
+<details>
+<summary>Alternative: install from a local clone (for development)</summary>
+
 Clone or copy this repository somewhere, then from its root:
 
 ```sh
@@ -116,7 +135,11 @@ This validates the plugin, copies it to `~/.config/omarchy/plugins/vocon/` (Omar
 symlinked plugins, so it copies), enables it in `~/.config/omarchy/shell.json` (a backup is made
 first), and creates `~/.config/vocon/config.json` if you don't have one. `--restart` restarts the
 Omarchy shell so it loads the plugin; your bar redraws for a moment. It is safe to run again at
-any time.
+any time. The installed copy is not a git checkout, so `omarchy plugin update` does not apply to
+it; re-run the script instead. Don't mix the two: `omarchy plugin add` refuses if `vocon` is
+already installed (`omarchy plugin remove vocon` first).
+
+</details>
 
 ### 4. Bind the push-to-talk key
 
@@ -577,14 +600,14 @@ First, always: `omarchy-shell vocon status` (should print `idle`) and
 
 | Symptom | Likely cause and fix |
 |---|---|
-| Pressing the key does nothing | Is the screen locked? vocon is off while locked (`omarchy-hyprland-session-locked; echo $?` prints 1 when unlocked). Otherwise check the binding exists: `hyprctl binds -j \| jq '.[] \| select(.description\|test("vocon"))'`. Re-run `bin/vocon-keybind`. If `status` errors, the plugin isn't loaded: `bin/vocon-install --restart`. |
+| Pressing the key does nothing | Is the screen locked? vocon is off while locked (`omarchy-hyprland-session-locked; echo $?` prints 1 when unlocked). Otherwise check the binding exists: `hyprctl binds -j \| jq '.[] \| select(.description\|test("vocon"))'`. Re-run `bin/vocon-keybind`. If `status` errors, the plugin isn't loaded: `omarchy plugin enable vocon` and `omarchy-restart-shell` (from a local clone: `bin/vocon-install --restart`). |
 | Notification: "VoxType isn't running" | `systemctl --user start voxtype`, or run `omarchy-voxtype-install`. |
 | Notification: "VoxType didn't start recording" | Almost always a wrong `audio.device`. Use an ALSA name from `arecord -L \| grep ^sysdefault`, then restart the `voxtype` service. See the daemon's complaint: `journalctl --user -u voxtype -n 20`. |
 | Notification: "VoxType is busy" | Another recording or dictation is in progress (F9 dictation, or a stuck one). Wait, or `voxtype record cancel`. |
 | It hears nothing / empty results | Wrong or muted mic. Test: `voxtype record start --file=/tmp/t.txt --no-osd; sleep 3; voxtype record stop --wait --json`. |
 | "space" is heard as "pace"/"base"/"this" | Bluetooth mic clipping the first word ([step 2](#2-choose-your-microphone)); otherwise add an alias. |
 | It types or runs "Thank you for watching" | Whisper inventing text from silence. In commands it just doesn't match; in dictation it is ignored (`dictation.ignore`). Try `voxtype setup vad`. |
-| Changed plugin code but nothing changed | A running shell keeps the old code: `bin/vocon-install --restart`. |
+| Changed plugin code but nothing changed | A running shell keeps the old code: `omarchy-restart-shell` (from a local clone: `bin/vocon-install --restart`). |
 | Config change ignored | A notification explains it. Bad JSON keeps the old config; check with `jq . ~/.config/vocon/config.json`. |
 | Slack commands do nothing | Slack must be the focused window (except `slack ...`). Check its class: `hyprctl clients -j \| jq -r '.[].class'` and set `packs.slack.match` if it isn't `slack`. Make sure `wtype` is installed. Raise the Slack delays if the switcher is slow. |
 | "Slack isn't running" | The `slack ...` form needs a Slack window; say `open slack` first. |
@@ -595,7 +618,8 @@ First, always: `omarchy-shell vocon status` (should print `idle`) and
 
 ## Updating and uninstalling
 
-**Update:** pull or copy the new version, then `bin/vocon-install --restart`. Your config is kept.
+**Update:** `omarchy plugin update vocon`, then `omarchy-restart-shell` (the running shell keeps the old
+code). Your config is kept. From a local clone: pull, then `bin/vocon-install --restart`.
 Re-run `bin/vocon-keybind` only if the key binding mechanism changed.
 
 **Uninstall:**
@@ -626,30 +650,29 @@ left installed (`omarchy-voxtype-remove` removes it).
 ## Development
 
 ```
-plugin/                      what gets installed
-  manifest.json  Service.qml   the Omarchy plugin entry; wires events to the pure core
-  Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
-  infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
-  core/                        pure ES modules, no Qt and no I/O
-    listening/                   the push-to-talk session state machine (and dictation)
-    interpretation/              normalising speech, word scoring, slot types, the command parser
-    commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, dictation, custom, help)
-    execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
+manifest.json  Service.qml   the Omarchy plugin entry (the repo root is the plugin); wires events to the pure core
+Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
+infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
+core/                        pure ES modules, no Qt and no I/O
+  listening/                   the push-to-talk session state machine (and dictation)
+  interpretation/              normalising speech, word scoring, slot types, the command parser
+  commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, dictation, custom, help)
+  execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
 bin/                         vocon-install, vocon-keybind, vocon-commands
 config/                      example configs (validated by the tests)
 tests/                       node:test unit tests, plus a QML smoke test of the core under Qt's engine
 ```
 
-The design is a functional core and an imperative shell: everything under `plugin/core/` is pure
+The design is a functional core and an imperative shell: everything under `core/` is pure
 and testable with plain Node, and only `Service.qml` and `infra/` do anything. The constraints,
 decisions and gotchas are written down in [`AGENTS.md`](AGENTS.md); **read it before changing code**.
 
 ```sh
 node --test tests/*.test.mjs
 QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input tests/qml/tst_core.qml
-omarchy plugin validate plugin
+omarchy plugin validate .
 ```
 
-To add commands, write a **pack** (see `plugin/core/commands/packs/` and
+To add commands, write a **pack** (see `core/commands/packs/` and
 `tests/adapter.test.mjs`, a worked example of an app-specific adapter), register it in
 `packs/index.mjs`, and add tests.

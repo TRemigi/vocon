@@ -4,10 +4,10 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildRegistry } from "../plugin/core/commands/registry.mjs";
-import { builtinPacks } from "../plugin/core/commands/packs/index.mjs";
-import { describe, render } from "../plugin/core/commands/listing.mjs";
-import { defaults, fromObject } from "../plugin/core/config.mjs";
+import { buildRegistry } from "../core/commands/registry.mjs";
+import { builtinPacks } from "../core/commands/packs/index.mjs";
+import { describe, render } from "../core/commands/listing.mjs";
+import { defaults, fromObject } from "../core/config.mjs";
 
 const lines = (config, options) => render(describe(buildRegistry(builtinPacks, config)), options);
 

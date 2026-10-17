@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { parse, defaults } from "../plugin/core/config.mjs";
-import { toArgv } from "../plugin/core/execution/keys.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { parse, defaults } from "../core/config.mjs";
+import { toArgv } from "../core/execution/keys.mjs";
 
 const win = (address, cls, focus) => ({ address, class: cls, title: "", mapped: true, focusHistoryID: focus });
 const inSlack = [win("0x1", "slack", 0), win("0x2", "com.mitchellh.ghostty", 1)];

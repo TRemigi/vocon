@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toArgv, combo, key, text, sleep } from "../plugin/core/execution/keys.mjs";
-import { keysAction, typeText } from "../plugin/core/execution/actions.mjs";
-import { wordsSlot } from "../plugin/core/interpretation/slots.mjs";
+import { toArgv, combo, key, text, sleep } from "../core/execution/keys.mjs";
+import { keysAction, typeText } from "../core/execution/actions.mjs";
+import { wordsSlot } from "../core/interpretation/slots.mjs";
 
 const argv = (...steps) => toArgv(keysAction(steps));
 

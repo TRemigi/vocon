@@ -1,13 +1,13 @@
 import QtQuick
 import QtTest
-import "../../plugin/core/pipeline.mjs" as Pipeline
-import "../../plugin/core/listening/session.mjs" as Session
-import "../../plugin/core/execution/hyprctl.mjs" as Hyprctl
-import "../../plugin/core/config.mjs" as Config
-import "../../plugin/core/execution/keys.mjs" as Keys
-import "../../plugin/core/commands/registry.mjs" as Registry
-import "../../plugin/core/commands/packs/index.mjs" as Packs
-import "../../plugin/core/commands/listing.mjs" as Listing
+import "../../core/pipeline.mjs" as Pipeline
+import "../../core/listening/session.mjs" as Session
+import "../../core/execution/hyprctl.mjs" as Hyprctl
+import "../../core/config.mjs" as Config
+import "../../core/execution/keys.mjs" as Keys
+import "../../core/commands/registry.mjs" as Registry
+import "../../core/commands/packs/index.mjs" as Packs
+import "../../core/commands/listing.mjs" as Listing
 
 // Loads the real core under Qt's V4 engine: catches syntax/import forms V4 rejects.
 TestCase {

@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { parse, defaults } from "../plugin/core/config.mjs";
-import { findWindow, isValidPattern } from "../plugin/core/execution/windows.mjs";
-import { toArgv } from "../plugin/core/execution/hyprctl.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { parse, defaults } from "../core/config.mjs";
+import { findWindow, isValidPattern } from "../core/execution/windows.mjs";
+import { toArgv } from "../core/execution/hyprctl.mjs";
 
 const win = (address, cls, extra = {}) => ({ address, class: cls, title: "", mapped: true, ...extra });
 const clients = [

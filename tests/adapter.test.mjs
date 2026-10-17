@@ -2,12 +2,12 @@
 // A real adapter would return a "send keyboard shortcut" action where this returns `exec`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { defaults } from "../plugin/core/config.mjs";
-import { builtinPacks } from "../plugin/core/commands/packs/index.mjs";
-import { command, keyword } from "../plugin/core/commands/dsl.mjs";
-import { classMatches } from "../plugin/core/execution/windows.mjs";
-import { exec } from "../plugin/core/execution/actions.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { defaults } from "../core/config.mjs";
+import { builtinPacks } from "../core/commands/packs/index.mjs";
+import { command, keyword } from "../core/commands/dsl.mjs";
+import { classMatches } from "../core/execution/windows.mjs";
+import { exec } from "../core/execution/actions.mjs";
 
 // 1. Decide when the adapter applies. ctx.active is the focused window (or null).
 const whenFirefox = (ctx) => classMatches(ctx.active, "^firefox$");

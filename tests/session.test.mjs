@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initialState, reduce } from "../plugin/core/listening/session.mjs";
-import { parse } from "../plugin/core/config.mjs";
+import { initialState, reduce } from "../core/listening/session.mjs";
+import { parse } from "../core/config.mjs";
 
 const run = (state, ...events) =>
   events.reduce((acc, e) => {

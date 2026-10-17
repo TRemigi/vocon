@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { parse } from "../plugin/core/config.mjs";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
+import { parse } from "../core/config.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
 
 // The shipped example configs must stay valid as the code evolves.
 const load = (name) => parse(readFileSync(new URL(`../config/${name}`, import.meta.url), "utf8"));

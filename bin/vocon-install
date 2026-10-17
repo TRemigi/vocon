@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Install (copy) the vocon plugin into Omarchy, enable it in shell.json and seed a config.
-# Omarchy rejects symlinked plugin folders, so this copies. Safe to re-run.
+# Developer install from a repo clone: copy the plugin into Omarchy, enable it in shell.json and
+# seed a config. Most people should use `omarchy plugin add` instead (see README). Omarchy rejects
+# symlinked plugin folders, so this copies. Safe to re-run. The copy has no .git, so
+# `omarchy plugin update vocon` does not apply to it; re-run this script instead.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="$ROOT/plugin"
+# The repo root is the plugin (that is what `omarchy plugin add` clones); ship only what runs.
+SHIPPED=(manifest.json Service.qml Help.qml core infra bin config)
 PLUGIN_ID="vocon"
 DEST="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 SHELL_JSON="$HOME/.config/omarchy/shell.json"
@@ -13,12 +16,12 @@ CONFIG_DIR="$HOME/.config/vocon"
 command -v jq >/dev/null || { echo "ERROR: jq is required" >&2; exit 2; }
 [ -f "$SHELL_JSON" ] || { echo "ERROR: $SHELL_JSON not found" >&2; exit 2; }
 
-omarchy plugin validate "$SRC" >/dev/null
+omarchy plugin validate "$ROOT" >/dev/null
 
 # Stage next to the plugins dir (not inside it, which the shell watches), then swap.
 STAGE="$(mktemp -d "$HOME/.config/omarchy/.vocon-install.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
-cp -r "$SRC/." "$STAGE/"
+for f in "${SHIPPED[@]}"; do cp -r "$ROOT/$f" "$STAGE/"; done
 mkdir -p "$(dirname "$DEST")"
 rm -rf "$DEST"
 mv "$STAGE" "$DEST"

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret } from "../plugin/core/pipeline.mjs";
-import { parse, defaults } from "../plugin/core/config.mjs";
+import { interpret } from "../core/pipeline.mjs";
+import { parse, defaults } from "../core/config.mjs";
 
 const run = (text, config = defaults) => interpret(config, { clients: [] }, text);
 const focus = (n) => [{ type: "hypr.focusWorkspace", workspace: n }];

@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRegistry, validate } from "../plugin/core/commands/registry.mjs";
-import { builtinPacks } from "../plugin/core/commands/packs/index.mjs";
-import { command, keyword, value } from "../plugin/core/commands/dsl.mjs";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { defaults } from "../plugin/core/config.mjs";
-import { workspaceSlot } from "../plugin/core/interpretation/slots.mjs";
+import { buildRegistry, validate } from "../core/commands/registry.mjs";
+import { builtinPacks } from "../core/commands/packs/index.mjs";
+import { command, keyword, value } from "../core/commands/dsl.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { defaults } from "../core/config.mjs";
+import { workspaceSlot } from "../core/interpretation/slots.mjs";
 
 const leaf = (tag) => ({ run: () => [{ type: "t", tag }] });
 

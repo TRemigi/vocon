@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parse, defaults } from "../plugin/core/config.mjs";
+import { parse, defaults } from "../core/config.mjs";
 
 test("empty object yields defaults", () => {
   const { config, errors } = parse("{}");

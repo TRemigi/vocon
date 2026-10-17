@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalize } from "../plugin/core/interpretation/utterance.mjs";
-import { workspaceSlot, parseNumberToken } from "../plugin/core/interpretation/slots.mjs";
-import { similarity, distance } from "../plugin/core/interpretation/similarity.mjs";
-import { tokenScore } from "../plugin/core/interpretation/words.mjs";
-import { parse } from "../plugin/core/interpretation/parser.mjs";
-import { command, keyword, value } from "../plugin/core/commands/dsl.mjs";
+import { normalize } from "../core/interpretation/utterance.mjs";
+import { workspaceSlot, parseNumberToken } from "../core/interpretation/slots.mjs";
+import { similarity, distance } from "../core/interpretation/similarity.mjs";
+import { tokenScore } from "../core/interpretation/words.mjs";
+import { parse } from "../core/interpretation/parser.mjs";
+import { command, keyword, value } from "../core/commands/dsl.mjs";
 
 test("normalize lowercases, strips punctuation and splits", () => {
   assert.deepEqual(normalize("Move focused Space 1."), ["move", "focused", "space", "1"]);

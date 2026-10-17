@@ -35,9 +35,9 @@ Hyprland key press/release
         voxtype / hyprctl / wtype / notify-send / uwsm-app via Process + execDetached
 ```
 
-- **Everything under `plugin/core/` is pure ES modules (`.mjs`).** No Qt, no Quickshell, no I/O,
+- **Everything under `core/` is pure ES modules (`.mjs`).** No Qt, no Quickshell, no I/O,
   no clocks, no randomness, no mutation of inputs. They are loaded by QML *and* by `node --test`.
-- **Side effects live only in `plugin/Service.qml` and `plugin/infra/`.** `infra/Run.qml` wraps
+- **Side effects live only in `Service.qml` and `infra/`.** `infra/Run.qml` wraps
   `Process`; `Voxtype.qml`, `Hyprland.qml`, `ConfigStore.qml`, `Executor.qml` are the edges.
 - **Effects are data.** The core returns descriptors (`{ type: "keys.send", steps }`); the shell
   interprets them. A new capability = a new descriptor type + a translator + an executor handler
@@ -45,7 +45,7 @@ Hyprland key press/release
 - **Elm-style session.** All state transitions are `reduce(state, event)`; the QML only feeds it
   events (`PttPressed`, `PttReleased`, `TranscriptReceived`, `ClientsSnapshot`, `RecordingFailed`,
   `ScreenLocked`, `WatchdogExpired`, `Cancelled`, `ConfigLoaded`, `DictationExpired`) and runs the effects.
-- **Bounded contexts** (directories under `plugin/core/`):
+- **Bounded contexts** (directories under `core/`):
   | Context | Owns |
   |---|---|
   | `listening/` | the push-to-talk session state machine, dictation arming |
@@ -135,7 +135,7 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
 ## Packs, adapters and how to extend
 
 A **pack** is `{ id, commands(config) -> [root nodes], slotTypes?(config) -> { name: slotType } }`,
-registered in `plugin/core/commands/packs/index.mjs`. It is active unless
+registered in `core/commands/packs/index.mjs`. It is active unless
 `config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`, `help`.
 
 - **App adapters** are packs whose root nodes carry `when(ctx)`; `ctx.active` is the focused
@@ -165,7 +165,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
   commands land in its filter, never in another app.
 
 ### Adding a pack (checklist)
-1. Write `plugin/core/commands/packs/<id>.mjs` (pure; `var`/functions; ES2017). Give it a
+1. Write `core/commands/packs/<id>.mjs` (pure; `var`/functions; ES2017). Give it a
    `help: { title, ... }` so `help` shows a nice name; the topic itself is automatic.
 2. Register it in `packs/index.mjs`; add `<id>: {}` to `defaults.packs` in `config.mjs`.
 3. Tests: behaviour per context, safety cases, registry stays conflict-free (`registryErrors`),
@@ -183,8 +183,13 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 ## Platform facts and gotchas (all learned the hard way)
 
 **Omarchy / Quickshell**
-- Plugin = `plugin/` copied to `~/.config/omarchy/plugins/vocon/`. **Symlinks are rejected**, so
-  `bin/vocon-install` copies. Third-party plugins are enabled by an **object** `{"id":"vocon"}` in
+- **The repo root is the plugin** (`manifest.json`, `Service.qml`, `Help.qml`, `core/`, `infra/` live at
+  the top level) because the standard install, `omarchy plugin add <git-url> --enable`, clones the repo into
+  `~/.config/omarchy/plugins/vocon/`, validates it there and updates it with `git merge --ff-only`; a
+  `plugin/` subfolder cannot be installed that way. The primary install path is that command; no config
+  is seeded (a missing `~/.config/vocon/config.json` loads the defaults). `bin/vocon-install` is the
+  developer path from a clone: **Symlinks are rejected**, so it copies (the shipped files only, no `.git`).
+  Third-party plugins are enabled by an **object** `{"id":"vocon"}` in
   `shell.json` `plugins[]` (not a bare string). Plugin ids may not start with `omarchy.`.
 - **A running shell keeps the old service code** after a reinstall (the QML engine caches
   modules); disable/enable does not help. Use `bin/vocon-install --restart`
@@ -278,6 +283,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
 | CLI-style command tree instead of phrase templates + scoring | Slice 1–2 used whole-phrase templates and scored ties; the owner wanted deterministic, CLI-like, easily-extended commands. Strict grammar: free-form phrasing is intentionally unsupported. |
 | Per-word fuzzy/alias matching | Whisper mishears single words (space→base/pace, claude→cloud); fix it where it happens. |
 | `omarchy-launch-or-focus` **not** used directly (for now) | It needs the spoken word to equal class *and* binary, doesn't validate names, `eval`s its launch string, matches titles, and can't focus-only. We own `findWindow` + `app.launch` with a catalog instead. The considered alternative: discover apps from `DesktopEntries` and delegate to the script — deferred, not rejected on merit. |
+| Repo root is the plugin; `omarchy plugin add` is the primary install | The standard path clones the repo and needs `manifest.json` at its root, so the old `plugin/` subfolder was flattened into the root. `bin/vocon-install` stays as the from-a-clone developer option. Considered and rejected: a separate plugin-only repo or a build/publish step (two repos to keep in step). Cost: the installed folder also contains `tests/`, `config/`, `bin/`. |
 | Class-only window matching | Avoid browser-tab-titled-"Slack" false positives. |
 | `keys.send` via `wtype`, not Hyprland `send_shortcut` | Stuck-key quirk documented in Omarchy; `wtype` is already a VoxType dependency. |
 | `help` is a pack plus an overlay in the same plugin; rows travel in the effect | The menu has no registry of its own, so the pure core builds the rows and the shell only draws them (testable without Qt). Topics come from the pack list, not a hand-kept table. Considered and rejected: a `topic` slot type (no per-word fuzzy/alias matching, and not listed by `vocon-commands`); a separate Quickshell instance or `walker` (the shell's own overlay kind is already in-process and themed). Rows have no descriptions yet, only phrases, scope and argument hints: nodes carry no description text. |
