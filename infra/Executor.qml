@@ -24,8 +24,9 @@ Item {
     "watchdog.disarm":    function(e) { root.watchdog.stop() },
     "dictation.timer.arm":    function(e) { root.dictationTimer.interval = e.ms; root.dictationTimer.restart() },
     "dictation.timer.disarm": function(e) { root.dictationTimer.stop() },
+    // `--`: bodies can quote the transcript, and Whisper may start one with "-" ("- Yes. - No.").
     "notify":             function(e) {
-      Quickshell.execDetached(["notify-send", "-a", "vocon", "-u", e.urgency, e.title, e.body])
+      Quickshell.execDetached(["notify-send", "-a", "vocon", "-u", e.urgency, "--", e.title, e.body])
     },
     "log":                function(e) { console.log("vocon: " + e.message) },
     // The menu is this plugin's own overlay (Help.qml); the descriptor is its payload.
