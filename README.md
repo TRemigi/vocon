@@ -298,12 +298,35 @@ README). vocon only **queues** the note; braindump files it in the background.
 | Say | Does |
 |---|---|
 | `note <text>` | queue `<text>` as a note |
-| `brain dump <text>` (or `braindump <text>`) | the same |
+| `note to <file> <text>` | queue it into that note (`braindump capture --file`) |
+| `note to <file> in <dir> <text>` | queue it into that note in that folder (`--dir` and `--file`) |
+| `brain dump <text>` (or `braindump <text>`) | the same, including the `to <file>` forms |
 | `brain dump status` (or `braindump status`) | notify what is queued, waiting for review, and filed recently |
 
 - The note is stored as you said it (capitalisation and punctuation kept), without the command
   words: "Note: renew my passport, by May." queues `renew my passport, by May.`
 - It works from any window and touches none; nothing is typed.
+- **Placing a note.** `<file>` and `<dir>` are vault paths you name in config, so only what *you*
+  wrote there reaches braindump's command line (see the options below):
+  ```json
+  "packs": {
+    "braindump": {
+      "files": { "to do": "areas/to-do", "standup": "projects/Acme/Standup" },
+      "dirs":  { "deep work": "areas/work" }
+    }
+  }
+  ```
+  "Note to standup ask about the SLA" adds to `projects/Acme/Standup`. `dirs` already knows braindump's
+  folders (`inbox`, `projects`, `areas`, `resources`, `archives`).
+- After `in <dir>`, `<file>` can also be any **one plain word**: "note to todo in areas email Sam" files
+  into `areas/todo`. A configured file keeps its own name there ("note to standup in archives …" is
+  `archives/Standup`). Folders must be known ones: "note to todo in the morning …" is refused rather
+  than guessed.
+- A file that isn't configured, with no `in <dir>`, isn't placed: "note to call mom" is queued as
+  `to call mom` and a toast says no file matched. So `in` right after a file is a command word, and a
+  note that starts with "to" is only placed if the next word names one of your files.
+- Placement is braindump's call to honour: if it can't (the note exists but the agent wanted a new one,
+  say), the capture lands in `inbox/` as a `Review - …` note.
 - `status` is a command word, so a note that *starts* with "status" has to be said as
   `note status …`.
 - A toast says "Note queued" (or why it couldn't be). It never quotes the note.
@@ -510,6 +533,8 @@ conflict) are reported and only that entry is skipped.
 | `packs.claude.sessionSubmit` | `true` | `session <name>` presses Enter on the first result; `false` only types the name. |
 | `packs.braindump.command` | `"braindump"` | The braindump binary; an absolute path if it isn't on the shell's `PATH`. |
 | `packs.braindump.state` | `""` | `--state` for capture and status, if you don't use braindump's default directory. Absolute path (no `~`). |
+| `packs.braindump.files` | `{}` | Spoken name → vault path for `note to <file> …`, e.g. `{ "to do": "areas/to-do" }`. Relative to the vault, `/`-separated, `.md` optional; entries that are absolute, start with `-`, contain `..` or aren't strings are ignored. |
+| `packs.braindump.dirs` | braindump's five folders | Spoken name → vault folder for `… in <dir> …`; your entries are added to (and win over) the defaults. |
 | `packs.braindump.vault` | `""` | `--vault` for `status`, which then also counts review notes waiting in `inbox/`. Absolute path. |
 | `dictation.armSeconds` | `30` | How long `dictate` stays armed (5-300). |
 | `dictation.maxSeconds` | `60` | Longest dictation recording (5-120). |

@@ -88,8 +88,121 @@ test("the pack can be switched off", () => {
 
 test("help lists it as a topic with its own rows", () => {
   const phrases = rows(describe(buildRegistry(builtinPacks, defaults))).filter((r) => r.topic === "braindump").map((r) => r.phrase);
-  assert.deepEqual(phrases, ["note <text>", "braindump status", "braindump <text>", "brain dump status", "brain dump <text>"]);
+  assert.deepEqual(phrases, [
+    "note to <file> in <dir> <text>", "note to <file> <text>", "note <text>",
+    "braindump status", "braindump to <file> in <dir> <text>", "braindump to <file> <text>", "braindump <text>",
+    "brain dump status", "brain dump to <file> in <dir> <text>", "brain dump to <file> <text>", "brain dump <text>",
+  ]);
   assert.equal(say("help braindump").outcome.kind, "matched");
+});
+
+// ---- placement: note to <file> [in <dir>] <text> ----
+
+const placed = withPack({
+  files: { "daily log": "areas/daily-log", standup: "projects/Acme/Standup", "Weekly Review": "areas/reviews/weekly.md" },
+  dirs: { "deep work": "areas/work" },
+});
+const capture = (spoken, config = placed) => {
+  const { outcome, actions } = say(spoken, config);
+  assert.equal(outcome.kind, "matched", spoken);
+  return actions;
+};
+
+// What was said -> [flags after `capture`, the text queued].
+const placements = {
+  "Note to daily log: Renew my passport, by May.": [["--file", "areas/daily-log"], "Renew my passport, by May."],
+  "note to standup ask about the SLA": [["--file", "projects/Acme/Standup"], "ask about the SLA"],
+  "brain dump to standup Ask Sam": [["--file", "projects/Acme/Standup"], "Ask Sam"],
+  "braindump to weekly review shipped it": [["--file", "areas/reviews/weekly.md"], "shipped it"],
+  "Note to todo in areas, email Sam.": [["--dir", "areas", "--file", "todo"], "email Sam."],
+  "note to retry in resources notes on jitter": [["--dir", "resources", "--file", "retry"], "notes on jitter"],
+  "note to ideas in deep work try ripgrep": [["--dir", "areas/work", "--file", "ideas"], "try ripgrep"],
+  "note to standup in archives old one": [["--dir", "archives", "--file", "Standup"], "old one"],   // a known file lends its name
+  "note to todo in project buy milk": [["--dir", "projects", "--file", "todo"], "buy milk"],
+};
+
+for (const [spoken, [flags, expected]] of Object.entries(placements)) {
+  test(`"${spoken}" files the note ${flags.join(" ")}`, () => {
+    const [action, ...rest] = capture(spoken);
+    assert.equal(rest.length, 0);
+    assert.equal(action.type, "note.capture");
+    assert.equal(action.text, expected);
+    assert.deepEqual(action.argv, ["braindump", "capture", ...flags]);
+    assert.equal(action.private, true);
+  });
+}
+
+test("placement flags come after --state and before the text, which stays on stdin", () => {
+  const config = withPack({ state: "/data/bd", files: { standup: "projects/Acme/Standup" } });
+  const [action] = capture("note to standup hello there", config);
+  assert.deepEqual(action.argv, ["braindump", "capture", "--state", "/data/bd", "--file", "projects/Acme/Standup"]);
+  const argv = toArgv(action);
+  assert.equal(argv[4], "hello there");
+  assert.deepEqual(argv.slice(5), action.argv);
+});
+
+test("a file that isn't known, with no folder, queues the note unplaced and says so", () => {
+  const [action, toast, ...rest] = capture("Note to call mom about Sunday.");
+  assert.equal(rest.length, 0);
+  assert.equal(action.type, "note.capture");
+  assert.equal(action.text, "to call mom about Sunday.");
+  assert.deepEqual(action.argv, ["braindump", "capture"]);
+  assert.equal(toast.type, "notify");
+  assert.ok(!JSON.stringify(toast).includes("mom"));   // the toast never quotes the note
+});
+
+test("a folder must be a known one; a note is never filed under a mishearing", () => {
+  for (const spoken of ["note to todo in the morning call mom", "note to todo in zebra stuff"]) {
+    const { outcome, actions } = say(spoken, placed);
+    assert.equal(outcome.kind, "nomatch", spoken);
+    assert.deepEqual(actions, []);
+  }
+});
+
+test("placement needs text", () => {
+  for (const spoken of ["note to standup", "note to todo in areas", "note to", "note to todo in"]) {
+    const { outcome, actions } = say(spoken, placed);
+    assert.equal(outcome.kind, "incomplete", spoken);
+    assert.deepEqual(actions, []);
+  }
+});
+
+test("a spoken file name never reaches argv unless it is config or one plain word", () => {
+  const spokenFlag = capture("note to --dir in areas hello")[0];   // normalised: "dir" is the word
+  assert.deepEqual(spokenFlag.argv, ["braindump", "capture", "--dir", "areas", "--file", "dir"]);
+  for (const action of capture("note to ../../etc in areas hello")) {
+    assert.ok(action.argv.every((part) => !part.includes("..") && !part.includes("/etc")), JSON.stringify(action.argv));
+  }
+  assert.equal(capture("note to a/b in areas hi").length > 0, true);
+  for (const a of capture("note to todo in areas $(rm -rf /) `x`")) {
+    if (a.argv) assert.ok(a.argv.every((part) => /^[A-Za-z0-9/._ -]+$/.test(part)), JSON.stringify(a.argv));
+  }
+});
+
+test("config: unusable file and folder entries are dropped, the rest still work", () => {
+  const config = withPack({
+    files: { bad1: "-rf", bad2: "/etc/passwd", bad3: "a/../b", bad4: 7, bad5: "", good: "areas/good" },
+    dirs: { bad: "../x", mine: "areas/mine" },
+  });
+  assert.deepEqual(capture("note to good hi", config)[0].argv, ["braindump", "capture", "--file", "areas/good"]);
+  assert.deepEqual(capture("note to x in mine hi", config)[0].argv, ["braindump", "capture", "--dir", "areas/mine", "--file", "x"]);
+  assert.equal(capture("note to bad1 hi", config)[0].argv.includes("--file"), false);   // unknown: unplaced
+  assert.equal(say("note to x in bad hi", config).outcome.kind, "nomatch");
+});
+
+test("a note that starts with 'to' still works when no file is configured", () => {
+  const [action] = capture("note to buy milk", defaults);
+  assert.equal(action.text, "to buy milk");
+  assert.deepEqual(action.argv, ["braindump", "capture"]);
+});
+
+test("placed notes are private and leave no words in logs or toasts", () => {
+  const config = parse(JSON.stringify({ feedback: { notifyOnSuccess: true }, packs: { braindump: { files: { standup: "projects/Acme/Standup" } } } })).config;
+  const { effects } = run(initialState(config), ...press, saying("Note to standup zebrasecret"), unlocked);
+  assert.ok(effects.some((e) => e.type === "note.capture" && e.text === "zebrasecret"));
+  for (const e of effects.filter((x) => x.type === "log" || x.type === "notify")) {
+    assert.ok(!JSON.stringify(e).includes("zebrasecret"), JSON.stringify(e));
+  }
 });
 
 // ---- the translator ----
