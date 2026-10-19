@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import "../core/execution/hyprctl.mjs" as Hyprctl
 import "../core/execution/keys.mjs" as Keys
+import "../core/execution/notes.mjs" as Notes
 
 Item {
   id: root
@@ -12,6 +13,7 @@ Item {
   property var hypr: null
   property var watchdog: null
   property var dictationTimer: null
+  property var braindump: null
   property var shell: null
   property string pluginId: "vocon"
 
@@ -33,6 +35,8 @@ Item {
     "help.show":          function(e) {
       if (!root.shell || !root.shell.summon(root.pluginId, JSON.stringify(e))) console.log("vocon: help menu unavailable")
     },
+    "note.capture":       function(e) { root.braindump.capture(Notes.toArgv(e)) },
+    "note.status":        function(e) { root.braindump.status(Notes.toArgv(e)) },
     "exec":               function(e) { Quickshell.execDetached(e.argv) },
     // Same launch path as Omarchy's own bindings (uwsm-app); argv is from the app catalog.
     "app.launch":         function(e) { Quickshell.execDetached(["setsid", "uwsm-app", "--"].concat(e.argv)) }

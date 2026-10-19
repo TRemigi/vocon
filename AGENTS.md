@@ -94,7 +94,8 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
 
 1. **Speech never becomes a command.** Slots resolve to numbers, catalog keys, or normalised
    words. Every `exec`/`app.launch` argv comes from **config or pack code only**, never from the
-   transcript. Everything is an argv array; there is no shell string built from speech.
+   transcript, with the two documented carriers of speech-derived text: dictation (point 3) and
+   `note.capture` (below). Everything is an argv array; there is no shell string built from speech.
 2. **Translators validate and throw** rather than pass bad data on: workspace = positive integer;
    window address = `0x[0-9a-f]+`; key names `[A-Za-z0-9_]+`; modifiers from a fixed list; typed
    text may not start with `-` or contain control characters (wtype would read it as an option /
@@ -108,6 +109,11 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
    each recording and at startup. Test: "log lines never contain what was said". Outside our control:
    failure toasts quote the transcript and Omarchy persists the last 10 notifications; VoxType logs
    transcripts to its journal.
+   **Notes are the one place speech is kept on purpose**, and by braindump, not vocon: `note <text>`
+   emits `note.capture` (`private: true`), whose text is one argv element of a fixed `sh -c` script
+   that pipes it to `braindump capture` on stdin (`execution/notes.mjs`; the text is never in the
+   script, the command and flags come from `packs.braindump` config). `Session.complete` skips the
+   success toast for any action marked `private`; `Braindump.qml`'s toasts never include the text.
 4. **Destructive or sending commands exist only in the focused-app form.** `send`, `edit`,
    `delete`, `confirm` work only while Slack is focused; the `slack …` from-anywhere form is
    navigation only. `delete` only opens Slack's confirmation; `confirm` accepts it. Keep new
@@ -135,8 +141,8 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
 ## Packs, adapters and how to extend
 
 A **pack** is `{ id, commands(config) -> [root nodes], slotTypes?(config) -> { name: slotType } }`,
-registered in `core/commands/packs/index.mjs`. It is active unless
-`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`, `help`.
+registered in `plugin/core/commands/packs/index.mjs`. It is active unless
+`config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `braindump`, `dictation`, `custom`, `help`.
 
 - **App adapters** are packs whose root nodes carry `when(ctx)`; `ctx.active` is the focused
   window (derived from `hyprctl clients` `focusHistoryID === 0`), `ctx.clients` all windows.
@@ -287,6 +293,7 @@ registered in `core/commands/packs/index.mjs`. It is active unless
 | Class-only window matching | Avoid browser-tab-titled-"Slack" false positives. |
 | `keys.send` via `wtype`, not Hyprland `send_shortcut` | Stuck-key quirk documented in Omarchy; `wtype` is already a VoxType dependency. |
 | `help` is a pack plus an overlay in the same plugin; rows travel in the effect | The menu has no registry of its own, so the pure core builds the rows and the shell only draws them (testable without Qt). Topics come from the pack list, not a hand-kept table. Considered and rejected: a `topic` slot type (no per-word fuzzy/alias matching, and not listed by `vocon-commands`); a separate Quickshell instance or `walker` (the shell's own overlay kind is already in-process and themed). Rows have no descriptions yet, only phrases, scope and argument hints: nodes carry no description text. |
+| `braindump` pack: `note <text>` / `brain dump <text>` queue the *raw* transcript minus the command words; `status` is a keyword | braindump already files notes asynchronously, so vocon only hands text over (stdin, one argument; its CLI takes text from args or stdin, and flags must precede args, so stdin sidesteps a leading `-`). The text comes from `ctx.transcript` via the shared `afterWords` (slots only carry normalised words, which lose case and punctuation); `pipeline.interpret` now puts the raw transcript in `ctx`. Inline only, no armed "next utterance" mode: it would be a second armed session state for little gain, and `note` + the sentence is one press. Global (no `when`): capturing touches no window. Considered and rejected: `brain dump` as a `JOINS` entry in `normalize` (one root, but then the raw-word skip count no longer equals the token count); passing the text as an argv to `braindump capture` (needs `--` handling and puts speech in a process listing); a `notes status` root (fuzzy-collides with `note`, which is 4 letters). Cost accepted: a note can't start with the word "status" unless said `note status …` (the `note` root has no keyword children). |
 | Dictation as session state, single-shot, focus-bound | A later command must never be typed into a window; VoxType's own typing mode would collide with vocon's recording. |
 | Slack: scoped short forms + `slack …` navigation-only form | Hands-free from anywhere, but sending/deleting only on a window the user is looking at. |
 | Invalid config keeps last good | Bad JSON used to reset to defaults and silently drop the user's apps. |

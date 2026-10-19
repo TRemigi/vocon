@@ -47,3 +47,14 @@ export function typeText(text) {
 export function helpShow(title, rows, topics) {
   return { type: "help.show", title: title, rows: rows, topics: topics };
 }
+
+// Queue what was said as a braindump note. `argv` is the configured braindump command (config only);
+// `text` is the one speech-derived part, sent on stdin. `private` keeps it out of toasts and logs.
+export function noteCapture(argv, text) {
+  return { type: "note.capture", argv: argv, text: text, private: true };
+}
+
+// Ask braindump what is queued and filed. `argv` is the configured command and flags (config only).
+export function noteStatus(argv) {
+  return { type: "note.status", argv: argv };
+}

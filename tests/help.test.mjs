@@ -93,19 +93,19 @@ test("custom commands get a `custom` topic only when there are some", () => {
 
 test("a pack added later becomes a topic with no change to help", () => {
   const extra = {
-    id: "notes",
-    help: { title: "Notes app" },
-    commands: () => [{ kind: "keyword", name: "note", words: ["note"], children: [], run: () => [{ type: "exec", argv: ["notes"] }] }],
+    id: "memos",
+    help: { title: "Memo app" },
+    commands: () => [{ kind: "keyword", name: "memo", words: ["memo"], children: [], run: () => [{ type: "exec", argv: ["memos"] }] }],
   };
   const packs = builtinPacks.slice(0, -1).concat([extra, builtinPacks[builtinPacks.length - 1]]);
   // the help pack was built from the original list, so rebuild it from the new one
   return import("../core/commands/packs/help.mjs").then(({ makeHelpPack }) => {
     const all = packs.slice(0, -1);
     const withHelp = all.concat([makeHelpPack(all)]);
-    const r = interpret(defaults, { clients: [] }, "help notes", withHelp);
+    const r = interpret(defaults, { clients: [] }, "help memos", withHelp);
     assert.equal(r.outcome.kind, "matched");
-    assert.equal(r.actions[0].title, "Notes app");
-    assert.deepEqual(phrases(r.actions[0]), ["note"]);
+    assert.equal(r.actions[0].title, "Memo app");
+    assert.deepEqual(phrases(r.actions[0]), ["memo"]);
   });
 });
 

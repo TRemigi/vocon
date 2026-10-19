@@ -37,3 +37,12 @@ export function normalize(text) {
   if (cleaned === "") return [];
   return joinCompounds(cleaned.split(/\s+/));
 }
+
+// "Dictate, Hi team." -> "Hi team.": the raw transcript with its first `count` words dropped (each a
+// run of letters/digits, which is what `normalize` calls a token) and the separators after them.
+// Slots only carry normalised words, so commands that need case and punctuation read it from here.
+export function afterWords(transcript, count) {
+  var rest = String(transcript == null ? "" : transcript);
+  for (var i = 0; i < count; i++) rest = rest.replace(/^[^a-z0-9]*[a-z0-9]+[\s,.:;!?]*/i, "");
+  return rest.trim();
+}

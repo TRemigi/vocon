@@ -1,13 +1,14 @@
 import QtQuick
 import QtTest
-import "../../core/pipeline.mjs" as Pipeline
-import "../../core/listening/session.mjs" as Session
-import "../../core/execution/hyprctl.mjs" as Hyprctl
-import "../../core/config.mjs" as Config
-import "../../core/execution/keys.mjs" as Keys
-import "../../core/commands/registry.mjs" as Registry
-import "../../core/commands/packs/index.mjs" as Packs
-import "../../core/commands/listing.mjs" as Listing
+import "../../plugin/core/pipeline.mjs" as Pipeline
+import "../../plugin/core/listening/session.mjs" as Session
+import "../../plugin/core/execution/hyprctl.mjs" as Hyprctl
+import "../../plugin/core/config.mjs" as Config
+import "../../plugin/core/execution/keys.mjs" as Keys
+import "../../plugin/core/execution/notes.mjs" as Notes
+import "../../plugin/core/commands/registry.mjs" as Registry
+import "../../plugin/core/commands/packs/index.mjs" as Packs
+import "../../plugin/core/commands/listing.mjs" as Listing
 
 // Loads the real core under Qt's V4 engine: catches syntax/import forms V4 rejects.
 TestCase {
@@ -82,6 +83,18 @@ TestCase {
     var far = Pipeline.interpret(Config.defaults, { clients: terminal }, "Claude settings.")
     compare(far.actions[0].type, "hypr.focusWindow")
     compare(Pipeline.interpret(Config.defaults, { clients: terminal }, "Close session.").outcome.kind, "nomatch")
+  }
+
+  function test_braindump_pack_under_v4() {
+    var hit = Pipeline.interpret(Config.defaults, { clients: [] }, "Brain dump. Renew my passport, by May.")
+    compare(hit.outcome.kind, "matched")
+    compare(hit.actions[0].type, "note.capture")
+    compare(hit.actions[0].text, "Renew my passport, by May.")
+    var argv = Notes.toArgv(hit.actions[0])
+    compare(argv[0], "sh")
+    compare(argv[4], "Renew my passport, by May.")
+    compare(argv.slice(5).join(" "), "braindump capture")
+    compare(Notes.toArgv(Pipeline.interpret(Config.defaults, { clients: [] }, "Braindump status.").actions[0]).join(" "), "braindump status")
   }
 
   function test_slack_keys_and_dictation_under_v4() {

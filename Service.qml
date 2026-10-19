@@ -46,12 +46,15 @@ Item {
     onTriggered: service.dispatch({ type: "DictationExpired" })
   }
 
+  Braindump { id: braindump }
+
   Executor {
     id: executor
     voxtype: voxtype
     hypr: hypr
     watchdog: watchdog
     dictationTimer: dictationTimer
+    braindump: braindump
     shell: service.shell
   }
 

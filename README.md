@@ -217,7 +217,7 @@ low-priority "Voice commands are off" notification.
 | `help <topic>` | the same menu, for one topic |
 
 Topics: `core` (the built-in commands: workspaces, apps, arrow keys and enter, dictation), one for each app
-pack (`slack`, `claude`), `custom` (your own commands, once you have some), and the built-in packs
+pack (`slack`, `claude`), `braindump` (also `note`), `custom` (your own commands, once you have some), and the built-in packs
 by name (`hyprland` also answers to `workspaces` or `windows`, `keys` to `keyboard`, `apps` to
 `applications`). Disabled packs are not topics. The footer of the menu lists what you can ask for.
 
@@ -289,6 +289,29 @@ Dictation is deliberately constrained so words can't land somewhere unintended:
 
 Typical use in a chat app: focus the message box, hold the key and say "dictate hi team, standup is
 moved to ten", release, then say `send` (in Slack) or press Enter.
+
+### Notes (braindump)
+
+Needs [braindump](https://github.com/TRemigi/brain-dump) installed and its organizer running (`braindump run`; see its
+README). vocon only **queues** the note; braindump files it in the background.
+
+| Say | Does |
+|---|---|
+| `note <text>` | queue `<text>` as a note |
+| `brain dump <text>` (or `braindump <text>`) | the same |
+| `brain dump status` (or `braindump status`) | notify what is queued, waiting for review, and filed recently |
+
+- The note is stored as you said it (capitalisation and punctuation kept), without the command
+  words: "Note: renew my passport, by May." queues `renew my passport, by May.`
+- It works from any window and touches none; nothing is typed.
+- `status` is a command word, so a note that *starts* with "status" has to be said as
+  `note status …`.
+- A toast says "Note queued" (or why it couldn't be). It never quotes the note.
+- vocon doesn't keep the note, but braindump does: it is written to braindump's queue and decision
+  records, and then to your vault. That is the point, but it is a place speech is stored that
+  [Privacy](#privacy) otherwise says there isn't.
+- If `braindump` isn't on the shell's `PATH` (a Go install lands in `~/go/bin`), set
+  `packs.braindump.command` to its absolute path.
 
 ### Slack
 
@@ -470,7 +493,7 @@ conflict) are reported and only that entry is skipped.
 | `matching.aliases` | `space: [pace, base, spice]`, `move: [moved, moves]` | Words the recogniser tends to produce for a command word. A list you set for a word **replaces** its default list. |
 | `feedback.notifyOnNoMatch` | `true` | Notify when a command isn't understood. |
 | `feedback.notifyOnSuccess` | `false` | Notify with the transcript on every successful command. |
-| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `keys`, `slack`, `claude`, `dictation`, `custom`, `help`. |
+| `packs.<id>.enabled` | `true` | Turn a command pack off: `hyprland`, `apps`, `keys`, `slack`, `claude`, `braindump`, `dictation`, `custom`, `help`. |
 | `packs.hyprland.workspaces` | `10` | Highest workspace number you can say. |
 | `packs.hyprland.moveFollows` | `true` | Whether `move space n` also switches to that workspace. |
 | `packs.keys.maxCount` | `20` | Most presses an arrow command accepts (`down 20`). Capped at 100. |
@@ -485,6 +508,9 @@ conflict) are reported and only that entry is skipped.
 | `packs.claude.paletteDelay` | `350` | ms for the command palette to open before `tab` types. |
 | `packs.claude.resultsDelay` | `450` | ms for its results to settle before Enter. |
 | `packs.claude.sessionSubmit` | `true` | `session <name>` presses Enter on the first result; `false` only types the name. |
+| `packs.braindump.command` | `"braindump"` | The braindump binary; an absolute path if it isn't on the shell's `PATH`. |
+| `packs.braindump.state` | `""` | `--state` for capture and status, if you don't use braindump's default directory. Absolute path (no `~`). |
+| `packs.braindump.vault` | `""` | `--vault` for `status`, which then also counts review notes waiting in `inbox/`. Absolute path. |
 | `dictation.armSeconds` | `30` | How long `dictate` stays armed (5-300). |
 | `dictation.maxSeconds` | `60` | Longest dictation recording (5-120). |
 | `dictation.ignore` | `["thank you for watching", "thanks for watching", "you"]` | Whole utterances never typed (Whisper often invents these from silence). |
@@ -578,14 +604,17 @@ hardware will differ.
 
 ## Privacy
 
-vocon keeps no record of what you say, and nothing it controls stores a transcript:
+vocon keeps no record of what you say, and nothing it controls stores a transcript, with one
+exception you ask for: the `note` commands hand what you said to braindump, which keeps it (see
+[Notes](#notes-braindump)).
 
 - **Its log** (`qs log ... | grep vocon:`) holds the word count and the outcome only, e.g.
   `heard 3 word(s) -> nomatch after “move”`. Dictated text is not logged, only its length.
 - **The transcript file** VoxType writes for vocon (`$XDG_RUNTIME_DIR/vocon-utterance.txt`) is
   deleted as soon as the result has been read, on cancel, before each recording, and when the
   plugin starts.
-- **Dictated text** is typed through a pipe and never appears in a notification.
+- **Dictated text** is typed through a pipe and never appears in a notification. A note is piped to
+  `braindump capture` the same way, and braindump's "Note queued" toast never quotes it.
 
 Two things outside vocon do keep text, and vocon can't turn them off:
 
@@ -650,14 +679,15 @@ left installed (`omarchy-voxtype-remove` removes it).
 ## Development
 
 ```
-manifest.json  Service.qml   the Omarchy plugin entry (the repo root is the plugin); wires events to the pure core
-Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
-infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
-core/                        pure ES modules, no Qt and no I/O
-  listening/                   the push-to-talk session state machine (and dictation)
-  interpretation/              normalising speech, word scoring, slot types, the command parser
-  commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, dictation, custom, help)
-  execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
+plugin/                      what gets installed
+  manifest.json  Service.qml   the Omarchy plugin entry; wires events to the pure core
+  Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
+  infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
+  core/                        pure ES modules, no Qt and no I/O
+    listening/                   the push-to-talk session state machine (and dictation)
+    interpretation/              normalising speech, word scoring, slot types, the command parser
+    commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, braindump, dictation, custom, help)
+    execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
 bin/                         vocon-install, vocon-keybind, vocon-commands
 config/                      example configs (validated by the tests)
 tests/                       node:test unit tests, plus a QML smoke test of the core under Qt's engine

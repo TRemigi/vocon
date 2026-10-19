@@ -15,7 +15,7 @@ import { defaults } from "../config.mjs";
 import { interpret, registryErrors } from "../pipeline.mjs";
 import { notify, typeText } from "../execution/actions.mjs";
 import { activeWindow } from "../execution/windows.mjs";
-import { normalize } from "../interpretation/utterance.mjs";
+import { normalize, afterWords } from "../interpretation/utterance.mjs";
 
 export function initialState(config) {
   // dictation: null, or { address } of the window it was armed for (see completeDictation)
@@ -110,18 +110,12 @@ function completeDictation(state) {
   return end([typeText(heard), log("dictation: typed " + heard.length + " characters")]);
 }
 
-// "Dictate, Hi team." -> "Hi team." The command word is always the first word, so drop the first
-// run of letters/digits (what `normalize` calls a token) and the separator after it.
-function afterCommandWord(transcript) {
-  return transcript.replace(/^[^a-z0-9]*[a-z0-9]+[\s,.:;!?]*/i, "").trim();
-}
-
 // `dictate <text>`: type <text> now, without a second key press. It goes through the same checks as an
 // armed dictation (ignore list, "cancel", focus), and stays armed with its timer if nothing was typed.
 function dictateInline(state) {
   var focused = activeWindow(state.clients);
   var done = completeDictation(Object.assign({}, state, {
-    transcript: afterCommandWord(state.transcript),
+    transcript: afterWords(state.transcript, 1),
     dictation: { address: focused ? focused.address : null },
   }));
   if (!done.state.dictation) return done;
@@ -144,7 +138,9 @@ function complete(state) {
   if (outcome.kind === "matched") {
     var arm = interpreted.actions.some(function (a) { return a.type === "dictation.arm"; });
     effects = effects.concat(interpreted.actions.filter(function (a) { return a.type !== "dictation.arm"; }));
-    if (feedback.notifyOnSuccess) effects.push(notify("Voice command", state.transcript, "low"));
+    // Actions marked `private` carry what was said (a note): no toast quoting it either.
+    var quiet = interpreted.actions.some(function (a) { return a.private; });
+    if (feedback.notifyOnSuccess && !quiet) effects.push(notify("Voice command", state.transcript, "low"));
     if (arm) {
       var focused = activeWindow(state.clients);
       effects.push({ type: "dictation.timer.arm", ms: state.config.dictation.armSeconds * 1000 });
