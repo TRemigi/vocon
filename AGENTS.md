@@ -144,7 +144,7 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
 ## Packs, adapters and how to extend
 
 A **pack** is `{ id, commands(config) -> [root nodes], slotTypes?(config) -> { name: slotType } }`,
-registered in `plugin/core/commands/packs/index.mjs`. It is active unless
+registered in `core/commands/packs/index.mjs`. It is active unless
 `config.packs[id].enabled === false`. Built in: `hyprland`, `apps`, `keys`, `slack`, `claude`, `braindump`, `dictation`, `custom`, `help`.
 
 - **App adapters** are packs whose root nodes carry `when(ctx)`; `ctx.active` is the focused
@@ -260,7 +260,7 @@ registered in `plugin/core/commands/packs/index.mjs`. It is active unless
   e.g. `node --test tests/slack-pack.test.mjs tests/session.test.mjs …` (some environments block
   directory-wide test runs). The README lists the full command. **QML guard:**
   `QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input tests/qml/tst_core.qml`.
-  `omarchy plugin validate plugin` must pass.
+  `omarchy plugin validate .` must pass.
 - `tests/examples.test.mjs` validates both shipped example configs, so they cannot rot.
 - **Test the pure core, table-driven.** Cover: each user scenario, mishearings, negative cases,
   safety/rejection cases, and "does nothing when out of scope".

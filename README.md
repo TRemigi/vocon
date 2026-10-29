@@ -704,15 +704,14 @@ left installed (`omarchy-voxtype-remove` removes it).
 ## Development
 
 ```
-plugin/                      what gets installed
-  manifest.json  Service.qml   the Omarchy plugin entry; wires events to the pure core
-  Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
-  infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
-  core/                        pure ES modules, no Qt and no I/O
-    listening/                   the push-to-talk session state machine (and dictation)
-    interpretation/              normalising speech, word scoring, slot types, the command parser
-    commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, braindump, dictation, custom, help)
-    execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
+manifest.json  Service.qml   the Omarchy plugin entry (the repo root is the plugin); wires events to the pure core
+Help.qml                     the `help` menu (an overlay; only draws what the help.show effect carries)
+infra/                       the side-effecting edges: Process runner, VoxType, Hyprland, executor, config file
+core/                        pure ES modules, no Qt and no I/O
+  listening/                   the push-to-talk session state machine (and dictation)
+  interpretation/              normalising speech, word scoring, slot types, the command parser
+  commands/                    the command tree DSL, the registry, and the packs (hyprland, apps, keys, slack, claude, braindump, dictation, custom, help)
+  execution/                   action descriptors and their translators (hyprctl, wtype), window lookup
 bin/                         vocon-install, vocon-keybind, vocon-commands
 config/                      example configs (validated by the tests)
 tests/                       node:test unit tests, plus a QML smoke test of the core under Qt's engine

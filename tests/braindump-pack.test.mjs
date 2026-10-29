@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interpret, registryErrors } from "../plugin/core/pipeline.mjs";
-import { parse, defaults } from "../plugin/core/config.mjs";
-import { afterWords } from "../plugin/core/interpretation/utterance.mjs";
-import { toArgv } from "../plugin/core/execution/notes.mjs";
-import { initialState, reduce } from "../plugin/core/listening/session.mjs";
-import { describe, rows } from "../plugin/core/commands/listing.mjs";
-import { buildRegistry } from "../plugin/core/commands/registry.mjs";
-import { builtinPacks } from "../plugin/core/commands/packs/index.mjs";
+import { interpret, registryErrors } from "../core/pipeline.mjs";
+import { parse, defaults } from "../core/config.mjs";
+import { afterWords } from "../core/interpretation/utterance.mjs";
+import { toArgv } from "../core/execution/notes.mjs";
+import { initialState, reduce } from "../core/listening/session.mjs";
+import { describe, rows } from "../core/commands/listing.mjs";
+import { buildRegistry } from "../core/commands/registry.mjs";
+import { builtinPacks } from "../core/commands/packs/index.mjs";
 
 const say = (text, config = defaults) => interpret(config, { clients: [] }, text);
 const withPack = (pack) => parse(JSON.stringify({ packs: { braindump: pack } })).config;
