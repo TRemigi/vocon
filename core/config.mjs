@@ -21,11 +21,12 @@ export var defaults = {
   // Assistant mode (its own push-to-talk key): window requests understood by a LOCAL model (Ollama).
   //   endpoint   must be a loopback address (http://127.0.0.1:<port> or http://[::1]:<port>)
   //   think      "off" | "low" | "medium" | "high" (gpt-oss only takes low|medium|high; qwen3 wants off)
+  //   clarifySeconds  how long "which window?" waits for an answer
   //   unlockMinutes  how long a fingerprint unlock lasts after its last use
   //   maxWindows / maxTitleChars  how much of the window list the model is shown
   assistant: {
     enabled: false, endpoint: "http://127.0.0.1:11434", model: "gpt-oss:20b", keepAlive: "10m", think: "low",
-    contextTokens: 4096, timeoutSeconds: 30, unlockMinutes: 10, maxWindows: 40, maxTitleChars: 80,
+    contextTokens: 4096, timeoutSeconds: 30, clarifySeconds: 30, unlockMinutes: 10, maxWindows: 40, maxTitleChars: 80,
   },
   // Your own commands, each one a path in the same command tree as the built-ins:
   //   { "say": "lock screen", "exec": ["omarchy-system-lock"] }          run a command
@@ -178,6 +179,7 @@ function checkAssistant(assistant, errors) {
   if (["off", "low", "medium", "high"].indexOf(fixed.think) === -1) bad("think", "must be off, low, medium or high");
   inRange("contextTokens", 1024, 32768);
   inRange("timeoutSeconds", 5, 300);
+  inRange("clarifySeconds", 5, 300);
   inRange("unlockMinutes", 1, 120);
   inRange("maxWindows", 1, 100);
   inRange("maxTitleChars", 20, 200);

@@ -142,7 +142,7 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
    actions must go through `complete`. Residual window: a lock engaging in the few ms between the
    probe and the action.
 
-## Assistant mode (in progress: slice 1 of 5, the pure core, is built)
+## Assistant mode (in progress: slices 1-2 of 5 built, the pure core and the session logic)
 
 A second, separate mode for fuzzy requests ("send the Claude window to workspace 3", "bring the
 database one here"). **Rules it must keep** (they qualify, not replace, the hard requirements):
@@ -162,15 +162,39 @@ database one here"). **Rules it must keep** (they qualify, not replace, the hard
    existing window. Hence only **reversible** actions (focus, bring, send to workspace); `close` and
    anything outward-facing are out of scope until they have their own confirm step.
 5. **Fingerprint unlock, sudo-style, always required** (`fprintd-verify`, valid `assistant.unlockMinutes`
-   after last use), including for windows. *Not built yet (slice 2-3).*
+   after last use, every use extends it), including for windows. The key does nothing but start the check
+   until it succeeds; you press again to speak. The reducer holds the policy (`unlockedUntil`); the
+   fingerprint probe itself is infra (slice 3). **Fail closed on time**: the core has no clock, so every
+   event carries `at` (stamped once, centrally, in `Service.dispatch`), each event is judged by its own
+   `at`, and no `at` means 0, which is locked. The unlock is re-checked when the transcript arrives and
+   again before actions run. Assistant completion goes through `complete`, so the screen-lock gate (invariant 8)
+   covers it too.
 6. **No speech, window titles or model replies in logs** (extends invariant 3). *Applies to the infra when it lands.*
 
+**Session shape.** One reducer, not two: both keys share the microphone, so they share the recording
+phases; `state.mode` ("command" | "assistant") says which key started a recording, and a release only counts
+for its own key. The assistant adds the phases `unlocking`, `thinking` and `clarifying` (`assistant/session.mjs`,
+a sub-reducer `listening/session.mjs` delegates to). `settle()` in `reduce` is the one place that undoes what a
+phase started whenever it is left by any event: model request (`llm.cancel`), fingerprint check (`auth.cancel`),
+the question on screen (`assistant.clarify.hide` + timer). Never `voxtype.cancel` unless a recording is
+running (invariant 7). Replies carry the request `id`, so a stale one is dropped. A spoken answer to "which
+window?" is re-checked against a fresh window snapshot (the window must still exist; "here" means where you are
+now); `parseChoice` takes numbers, ordinals ("the second one") and cancel words, with cancel winning.
+New effects the shell must implement (slice 3): `auth.verify|cancel`, `llm.interpret|cancel`, `assistant.status`,
+`assistant.clarify.show|hide`, `clarify.timer.arm|disarm`; new events: `AssistPressed|Released`, `UnlockResult`,
+`ModelReplied|Failed`, `ChoiceSelected`, `ClarifyExpired`. A keyboard choice uses the snapshot from when the
+question was asked (the overlay holds keyboard focus, so windows shouldn't move meanwhile).
+
 Built so far: `assistant/ollama.mjs` (endpoint check, `/api/chat` body), `assistant/windows.mjs`
-(`candidates`, `buildRequest`, `parseIntent`, `plan`, `choose`), `hypr.moveWindow`
+(`candidates`, `buildRequest`, `parseIntent`, `plan`, `choose`, `clarifyRows`), `assistant/choice.mjs`,
+`assistant/session.mjs`, `listening/state.mjs`, `hypr.moveWindow`
 (`hl.dsp.window.move({ workspace, follow = false, window = "address:0x…" })`, verified live on throwaway
 windows; Hyprland answers `ok` even for an address that no longer exists, so a stale address is a silent no-op).
-To do: session phases + unlock gate (reducer), `infra/Llm.qml` + IPC `assist-start|assist-stop` + second
-keybind + fingerprint probe, the clarify overlay, README.
+To do: `infra/Llm.qml` (HTTP to Ollama, no speech/titles/replies in logs) + `infra/Auth.qml` (`fprintd-verify`;
+report `locked` if the screen is locked) + clarify `Timer` + IPC `assist-start|assist-stop|choose` + second keybind
+(`bin/vocon-keybind`) + `Service.dispatch` stamping `at`; then the clarify overlay (slice 4); README (slice 5).
+The snapshot gives the current workspace only via the focused window, so `bring` with nothing focused says it
+can't tell (add `hyprctl activeworkspace` to the snapshot if that matters).
 
 ## Packs, adapters and how to extend
 

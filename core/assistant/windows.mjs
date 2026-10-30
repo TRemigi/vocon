@@ -156,3 +156,17 @@ export function choose(clarification, number, ctx) {
   if (!win) return none("that is not one of the choices");
   return act(clarification.verb, win, clarification.workspace, ctx || { workspace: null });
 }
+
+// What the clarify overlay shows: numbered rows (1-based, the numbers you say) with no addresses.
+export function clarifyRows(clarification) {
+  return clarification.options.map(function (w, i) {
+    var text = (w.cls ? w.cls + " — " : "") + w.title;
+    return { number: i + 1, text: text.length > 90 ? text.substring(0, 90) + "…" : text, workspace: w.workspace };
+  });
+}
+
+export function clarifyTitle(clarification) {
+  if (clarification.verb === "focus") return "Go to which window?";
+  if (clarification.verb === "bring") return "Bring which window here?";
+  return "Send which window to workspace " + clarification.workspace + "?";
+}
