@@ -18,6 +18,13 @@ export function focusWindow(address) {
   return { type: "hypr.focusWindow", address: address };
 }
 
+// Move one specific window to a workspace and stay where you are (`follow = false`). Unlike
+// moveWindowToWorkspace this does not act on the focused window. The address comes from the
+// hyprctl snapshot, never from speech or from a model.
+export function moveWindow(address, workspace) {
+  return { type: "hypr.moveWindow", address: address, workspace: workspace };
+}
+
 // Never built from speech text: argv comes from the app catalog or user config only.
 export function exec(argv) {
   return { type: "exec", argv: argv };

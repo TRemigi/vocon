@@ -9,6 +9,8 @@ import "../../core/execution/notes.mjs" as Notes
 import "../../core/commands/registry.mjs" as Registry
 import "../../core/commands/packs/index.mjs" as Packs
 import "../../core/commands/listing.mjs" as Listing
+import "../../core/assistant/windows.mjs" as AssistWindows
+import "../../core/assistant/ollama.mjs" as Ollama
 
 // Loads the real core under Qt's V4 engine: catches syntax/import forms V4 rejects.
 TestCase {
@@ -132,6 +134,25 @@ TestCase {
   function test_unusable_config_is_flagged() {
     compare(Config.parse("{nope").ok, false)
     compare(Config.parse("{}").ok, true)
+  }
+
+  function test_assistant_windows_under_v4() {
+    var cfg = Config.defaults
+    var clients = [
+      { address: "0x1000", mapped: true, hidden: false, focusHistoryID: 0, workspace: { id: 1 }, "class": "chromium", title: "Jira board" },
+      { address: "0x1001", mapped: true, hidden: false, focusHistoryID: 1, workspace: { id: 2 }, "class": "spotify", title: "Spotify" }
+    ]
+    var windows = AssistWindows.candidates(clients, cfg)
+    compare(windows.length, 2)
+    var parsed = AssistWindows.parseIntent('{"verb":"send","matches":[1],"workspace":3}', windows.length)
+    verify(parsed.ok)
+    var planned = AssistWindows.plan(parsed.intent, windows, { workspace: 1 })
+    compare(planned.kind, "act")
+    compare(Hyprctl.toArgv(planned.actions[0])[2], 'hl.dsp.window.move({ workspace = "3", follow = false, window = "address:0x1001" })')
+    var body = Ollama.chatBody(AssistWindows.buildRequest(windows, "send spotify to workspace three"), cfg)
+    compare(body.think, "low")
+    verify(Ollama.isLoopbackEndpoint(cfg.assistant.endpoint))
+    verify(!Ollama.isLoopbackEndpoint("http://example.com:11434"))
   }
 
   function test_hyprctl_argv() {

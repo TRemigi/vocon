@@ -5,6 +5,7 @@
 
 import { normalize } from "./interpretation/utterance.mjs";
 import { isValidPattern } from "./execution/windows.mjs";
+import { isLoopbackEndpoint } from "./assistant/ollama.mjs";
 
 export var defaults = {
   pushToTalk: { key: "F10" },
@@ -17,6 +18,15 @@ export var defaults = {
   // armed; maxSeconds: longest dictation; ignore: whole utterances never typed (Whisper often
   // invents these from silence).
   dictation: { armSeconds: 30, maxSeconds: 60, ignore: ["thank you for watching", "thanks for watching", "you"] },
+  // Assistant mode (its own push-to-talk key): window requests understood by a LOCAL model (Ollama).
+  //   endpoint   must be a loopback address (http://127.0.0.1:<port> or http://[::1]:<port>)
+  //   think      "off" | "low" | "medium" | "high" (gpt-oss only takes low|medium|high; qwen3 wants off)
+  //   unlockMinutes  how long a fingerprint unlock lasts after its last use
+  //   maxWindows / maxTitleChars  how much of the window list the model is shown
+  assistant: {
+    enabled: false, endpoint: "http://127.0.0.1:11434", model: "gpt-oss:20b", keepAlive: "10m", think: "low",
+    contextTokens: 4096, timeoutSeconds: 30, unlockMinutes: 10, maxWindows: 40, maxTitleChars: 80,
+  },
   // Your own commands, each one a path in the same command tree as the built-ins:
   //   { "say": "lock screen", "exec": ["omarchy-system-lock"] }          run a command
   //   { "say": "notes", "launch": ["obsidian"] }                         start an app (uwsm-app)
@@ -152,6 +162,28 @@ function validateCommands(raw, errors) {
   return clean;
 }
 
+// Bad values fall back to the default one by one (reported), like the other sections.
+function checkAssistant(assistant, errors) {
+  var fixed = Object.assign({}, assistant);
+  var bad = function (key, why) {
+    errors.push("assistant." + key + " " + why);
+    fixed[key] = defaults.assistant[key];
+  };
+  var inRange = function (key, min, max) {
+    if (!(Number.isInteger(fixed[key]) && fixed[key] >= min && fixed[key] <= max)) bad(key, "must be a whole number between " + min + " and " + max);
+  };
+  if (!isLoopbackEndpoint(fixed.endpoint)) bad("endpoint", "must be a loopback address like http://127.0.0.1:11434 (the assistant's model stays local)");
+  if (typeof fixed.model !== "string" || fixed.model.trim() === "") bad("model", "must be a non-empty string");
+  if (typeof fixed.keepAlive !== "string" || !/^[0-9]+[smh]$/.test(fixed.keepAlive)) bad("keepAlive", "must look like 10m, 30s or 1h");
+  if (["off", "low", "medium", "high"].indexOf(fixed.think) === -1) bad("think", "must be off, low, medium or high");
+  inRange("contextTokens", 1024, 32768);
+  inRange("timeoutSeconds", 5, 300);
+  inRange("unlockMinutes", 1, 120);
+  inRange("maxWindows", 1, 100);
+  inRange("maxTitleChars", 20, 200);
+  return fixed;
+}
+
 function checkRanges(config, errors) {
   var fixed = config;
   if (!(config.voxtype.maxSeconds >= 1 && config.voxtype.maxSeconds <= 120)) {
@@ -191,6 +223,7 @@ function checkRanges(config, errors) {
     });
     fixed = Object.assign({}, fixed, { matching: Object.assign({}, fixed.matching, { aliases: kept }) });
   }
+  fixed = Object.assign({}, fixed, { assistant: checkAssistant(config.assistant, errors) });
   if (typeof config.pushToTalk.key !== "string" || config.pushToTalk.key === "") {
     errors.push("pushToTalk.key must be a non-empty string");
     fixed = Object.assign({}, fixed, { pushToTalk: { key: defaults.pushToTalk.key } });
@@ -208,6 +241,7 @@ export function fromObject(raw) {
     matching: mergeSection(defaults.matching, raw.matching, errors, "matching"),
     feedback: mergeSection(defaults.feedback, raw.feedback, errors, "feedback"),
     dictation: mergeSection(defaults.dictation, raw.dictation, errors, "dictation"),
+    assistant: mergeSection(defaults.assistant, raw.assistant, errors, "assistant"),
     packs: isObject(raw.packs) ? Object.assign({}, defaults.packs, raw.packs) : defaults.packs,
     apps: validateApps(mergeApps(defaults.apps, raw.apps, errors), errors),
     commands: validateCommands(raw.commands, errors),

@@ -52,6 +52,7 @@ Hyprland key press/release
   | `interpretation/` | normalising transcripts, word scoring, slot types, the tree parser |
   | `commands/` | the command tree DSL, the registry/merging, all packs |
   | `execution/` | action descriptors and their translators (hyprctl, wtype), window lookup |
+  | `assistant/` | assistant mode: the local-model endpoint, window-request prompt/validation/planning |
   | `config.mjs`, `pipeline.mjs` | config parse/validate/defaults; the single `interpret()` entry point |
 - **JS dialect: ES2017-conservative, `var` + function expressions** (the existing style). QML's V4
   engine loads these files. Avoid object spread, `flatMap`, optional chaining, etc.; use
@@ -140,6 +141,36 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
    into the lock screen's password field would otherwise be possible). Any new path that runs
    actions must go through `complete`. Residual window: a lock engaging in the few ms between the
    probe and the action.
+
+## Assistant mode (in progress: slice 1 of 5, the pure core, is built)
+
+A second, separate mode for fuzzy requests ("send the Claude window to workspace 3", "bring the
+database one here"). **Rules it must keep** (they qualify, not replace, the hard requirements):
+
+1. **Its own push-to-talk key, off by default (`assistant.enabled`).** The normal key never sends
+   speech to a model, so hard requirement 2 and safety invariant 1 hold for it exactly as written.
+2. **The model is local.** `assistant.endpoint` must be a literal loopback address (`127.0.0.1` or
+   `[::1]`, not `localhost`); `config.mjs` rejects anything else and falls back to the default.
+   Ollama + `gpt-oss:20b` (official `ollama`/`ollama-vulkan` packages; the iGPU needs
+   `OLLAMA_IGPU_ENABLE=1`). No cloud model, ever, for this mode.
+3. **The model interprets, code decides.** Its reply is data: `parseIntent` accepts only a fixed verb
+   set, window numbers that exist in the snapshot and a workspace 0-9. `plan` turns that into
+   existing action descriptors. **Every address in an action comes from the `hyprctl` snapshot**; the
+   prompt does not even contain addresses. More than one candidate means `clarify` (ask you), never a guess.
+4. **Window titles are untrusted** (a web page sets its tab title). Containment is the validation above,
+   not the prompt's "don't follow instructions" sentence: a hostile title can at worst steer to another
+   existing window. Hence only **reversible** actions (focus, bring, send to workspace); `close` and
+   anything outward-facing are out of scope until they have their own confirm step.
+5. **Fingerprint unlock, sudo-style, always required** (`fprintd-verify`, valid `assistant.unlockMinutes`
+   after last use), including for windows. *Not built yet (slice 2-3).*
+6. **No speech, window titles or model replies in logs** (extends invariant 3). *Applies to the infra when it lands.*
+
+Built so far: `assistant/ollama.mjs` (endpoint check, `/api/chat` body), `assistant/windows.mjs`
+(`candidates`, `buildRequest`, `parseIntent`, `plan`, `choose`), `hypr.moveWindow`
+(`hl.dsp.window.move({ workspace, follow = false, window = "address:0x…" })`, verified live on throwaway
+windows; Hyprland answers `ok` even for an address that no longer exists, so a stale address is a silent no-op).
+To do: session phases + unlock gate (reducer), `infra/Llm.qml` + IPC `assist-start|assist-stop` + second
+keybind + fingerprint probe, the clarify overlay, README.
 
 ## Packs, adapters and how to extend
 
@@ -306,6 +337,8 @@ registered in `core/commands/packs/index.mjs`. It is active unless
 | Dropped `send` as a synonym of `move` | Collided with Slack's `send`. |
 | Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. The app has no tab shortcut, so `tab home|code` goes through the command palette with fixed text. `session <name>` types *spoken* text into that palette, which also holds commands, so it is focused-only and `packs.claude.sessionSubmit: false` leaves Enter to the user (the palette is a second command interpreter; keep speech-fed palette use navigation-scoped). |
 | `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |
+| Assistant mode: local model (`gpt-oss:20b` via Ollama) returns window *numbers*; code validates and decides | Slice-0 benchmark on an invented 11-window desktop, 12 requests, one run each at temperature 0 (prompt tuned after the first run, so scores are optimistic). Keywords + code resolver: 10/12 but its misses were confident wrong picks (two database windows, picked one). Window-number list: 10/12 with misses only as over-asking (a safe direction). `qwen3:8b`: 6/12, mis-corrected "Claude" to "Claire", followed an injected title once. gpt-oss ~16 tok/s, ~5-7 s per call warm, ~7 s cold. Rejected for the first use case: Slack (needs an app install the owner can't do; the workflow route can't read or reply as the user; the Slack MCP costs ~10-30x a single call per request, is slower, and sends content to a cloud model). Considered later: a deterministic fast path that skips the model when the words match one window directly. |
+| `bring` only moves; it does not also focus | Two actions run as two detached `hyprctl` processes with no ordering; focus-before-move would switch workspace away. |
 
 ## Known limitations and backlog
 

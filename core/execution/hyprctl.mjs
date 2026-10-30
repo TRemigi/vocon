@@ -37,6 +37,11 @@ export function toArgv(action) {
       );
     case "hypr.swapWindow":
       return dispatch('hl.dsp.window.swap({ direction = "' + assertDirection(action.direction) + '" })');
+    case "hypr.moveWindow":
+      return dispatch(
+        'hl.dsp.window.move({ workspace = "' + assertWorkspace(action.workspace) + '", follow = false, window = "address:' +
+          assertAddress(action.address) + '" })'
+      );
     case "hypr.focusWindow":
       return dispatch('hl.dsp.focus({ window = "address:' + assertAddress(action.address) + '" })');
     default:
