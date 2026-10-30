@@ -4,7 +4,7 @@
 // the same microphone, so they share the recording phases (listening -> transcribing). On top of those
 // the assistant adds three phases of its own:
 //
-//   unlocking    waiting for the fingerprint check (the key does nothing until it succeeds)
+//   unlocking    waiting for the unlock (password, or fingerprint then password); the key does nothing until it succeeds
 //   thinking     waiting for the local model's reply to a request
 //   clarifying   more than one window fits; waiting for you to say or press which one
 //
@@ -14,7 +14,7 @@
 // Events (all stamped with `at`, ms since the epoch, by the shell: the core has no clock, and a missing
 // `at` counts as locked): AssistPressed, AssistReleased, UnlockResult{ok, reason}, ModelReplied{id, text},
 // ModelFailed{id, message}, ChoiceSelected{number}, ClarifyExpired.
-// Effects: auth.verify{timeoutSeconds}, auth.cancel, llm.interpret{id, request, timeoutSeconds}, llm.cancel,
+// Effects: auth.verify{method, timeoutSeconds}, auth.cancel, llm.interpret{id, url, body, timeoutSeconds}, llm.cancel,
 // assistant.status{text}, assistant.clarify.show{title, rows}, assistant.clarify.hide,
 // clarify.timer.arm{ms}, clarify.timer.disarm, plus voxtype/watchdog/notify/log and the plan's actions.
 //
@@ -25,15 +25,22 @@ import { activeWindow } from "../execution/windows.mjs";
 import { normalize } from "../interpretation/utterance.mjs";
 import { idle, log, result } from "../listening/state.mjs";
 import { candidates, buildRequest, parseIntent, plan, choose, clarifyRows, clarifyTitle } from "./windows.mjs";
+import { chatBody, chatUrl, isLoopbackEndpoint } from "./ollama.mjs";
 import { parseChoice } from "./choice.mjs";
 
-var AUTH_TIMEOUT_SECONDS = 20;
-
+// Shown for an unlock that did not happen. Only these fixed texts: whatever `reason` says is not echoed.
 var UNLOCK_FAILURES = {
-  failed: "Fingerprint not recognised",
-  timeout: "No fingerprint was presented in time",
-  unavailable: "The fingerprint reader is not available",
+  failed: "Authentication failed",
+  timeout: "No answer in time",
+  unavailable: "That unlock method is not available",
+  cancelled: "Unlock cancelled",
+  nopassword: "sudo on this machine does not ask for a password, so it cannot verify you",
   locked: "The screen is locked",
+};
+
+var UNLOCK_PROMPT = {
+  password: "Type your password in the small terminal that opened, then press the key again",
+  fingerprint: "Touch the fingerprint sensor (or type your password when asked), then press the key again",
 };
 
 // Unlocked only with a real clock reading that is still inside the window (fail closed otherwise).
@@ -77,9 +84,9 @@ export function onPressed(state) {
 
   if (!isUnlocked(state)) {
     return result(Object.assign({}, idle(state), { phase: "unlocking", mode: "assistant" }), [
-      { type: "auth.verify", timeoutSeconds: AUTH_TIMEOUT_SECONDS },
-      { type: "watchdog.arm", ms: (AUTH_TIMEOUT_SECONDS + 5) * 1000 },
-      notify("Assistant locked", "Touch the fingerprint sensor, then press the key again", "low"),
+      { type: "auth.verify", method: a.unlock, timeoutSeconds: a.unlockTimeoutSeconds },
+      { type: "watchdog.arm", ms: (a.unlockTimeoutSeconds + 5) * 1000 },
+      notify("Assistant locked", UNLOCK_PROMPT[a.unlock], "low"),
     ]);
   }
 
@@ -107,7 +114,6 @@ export function onUnlockResult(state, event) {
       log("assistant: unlocked"),
     ]);
   }
-  // Only fixed texts are shown; whatever `reason` says is not echoed.
   var why = Object.prototype.hasOwnProperty.call(UNLOCK_FAILURES, event.reason) ? UNLOCK_FAILURES[event.reason] : "Unlock failed";
   return done(state, [notify("Assistant is still locked", why, "normal"), log("assistant: unlock failed")]);
 }
@@ -181,6 +187,10 @@ function answer(state, heard) {
 
 // A new request: ask the local model. The transcript only travels inside the effect.
 function interpretNew(state, heard) {
+  // Checked again here, not only in the config: speech and window titles must never leave this machine.
+  if (!isLoopbackEndpoint(state.config.assistant.endpoint)) {
+    return done(state, [notify("Assistant", "The model endpoint is not a loopback address, so nothing was sent", "critical"), log("assistant: refused a non-loopback endpoint")]);
+  }
   var windows = candidates(state.clients, state.config);
   if (windows.length === 0) return done(state, [notify("Assistant", "No windows to choose from", "low"), log("assistant: no windows")]);
   var id = state.requestSeq + 1;
@@ -193,7 +203,7 @@ function interpretNew(state, heard) {
   return result(next, [
     { type: "watchdog.arm", ms: (a.timeoutSeconds + 5) * 1000 },
     { type: "assistant.status", text: "Thinking…" },
-    { type: "llm.interpret", id: id, request: buildRequest(windows, heard), timeoutSeconds: a.timeoutSeconds },
+    { type: "llm.interpret", id: id, url: chatUrl(state.config), body: chatBody(buildRequest(windows, heard), state.config), timeoutSeconds: a.timeoutSeconds },
     log("assistant: " + normalize(heard).length + " word(s) -> asking the model about " + windows.length + " window(s)"),
   ]);
 }

@@ -15,7 +15,10 @@ Item {
 
   property var sessionState: Session.initialState()
 
-  function dispatch(event) {
+  // Every event is stamped with the time here, once: the core has no clock, and the assistant's unlock
+  // is measured with it. An event without `at` would count as locked.
+  function dispatch(raw) {
+    var event = Object.assign({}, raw, { at: Date.now() })
     var result = Session.reduce(service.sessionState, event)
     service.sessionState = result.state
     for (var i = 0; i < result.effects.length; i++) executor.execute(result.effects[i])
@@ -48,6 +51,24 @@ Item {
 
   Braindump { id: braindump }
 
+  // Assistant mode: fingerprint unlock, the local model, and the "which window?" timeout.
+  Auth {
+    id: auth
+    onResult: function(ok, reason) { service.dispatch({ type: "UnlockResult", ok: ok, reason: reason }) }
+  }
+
+  Llm {
+    id: llm
+    onReplied: function(id, text) { service.dispatch({ type: "ModelReplied", id: id, text: text }) }
+    onFailed: function(id, message) { service.dispatch({ type: "ModelFailed", id: id, message: message }) }
+  }
+
+  Timer {
+    id: clarifyTimer
+    repeat: false
+    onTriggered: service.dispatch({ type: "ClarifyExpired" })
+  }
+
   Executor {
     id: executor
     voxtype: voxtype
@@ -55,6 +76,9 @@ Item {
     watchdog: watchdog
     dictationTimer: dictationTimer
     braindump: braindump
+    auth: auth
+    llm: llm
+    clarifyTimer: clarifyTimer
     shell: service.shell
   }
 
@@ -84,6 +108,24 @@ Item {
       return service.sessionState.phase
     }
 
+    // Assistant mode: its own key (see bin/vocon-keybind). Held = listening; the first press while locked
+    // starts the fingerprint check instead.
+    function assistStart(): string {
+      service.dispatch({ type: "AssistPressed" })
+      return service.sessionState.phase
+    }
+
+    function assistStop(): string {
+      service.dispatch({ type: "AssistReleased" })
+      return service.sessionState.phase
+    }
+
+    // Answer "which window?" by number (the overlay will call this; useful from a shell too).
+    function choose(number: int): string {
+      service.dispatch({ type: "ChoiceSelected", number: number })
+      return service.sessionState.phase
+    }
+
     function dictation(): string {
       return service.sessionState.dictation ? "armed" : "off"
     }
@@ -92,6 +134,17 @@ Item {
     function simulate(text: string): string {
       if (service.sessionState.phase !== "idle") return "busy"
       service.sessionState = Object.assign({}, service.sessionState, { phase: "transcribing" })
+      hypr.snapshotClients()
+      service.dispatch({ type: "TranscriptReceived", text: text })
+      return "ok"
+    }
+
+    // Dev aid for assistant mode: like `simulate`, but through the assistant. The unlock and the screen
+    // lock still apply, so unlock first (assistStart, then touch the sensor). Also answers a pending question.
+    function assistSimulate(text: string): string {
+      var phase = service.sessionState.phase
+      if (phase !== "idle" && phase !== "clarifying") return "busy"
+      service.sessionState = Object.assign({}, service.sessionState, { phase: "transcribing", mode: "assistant", transcript: null, clients: null })
       hypr.snapshotClients()
       service.dispatch({ type: "TranscriptReceived", text: text })
       return "ok"

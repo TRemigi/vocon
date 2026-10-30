@@ -19,14 +19,19 @@ export var defaults = {
   // invents these from silence).
   dictation: { armSeconds: 30, maxSeconds: 60, ignore: ["thank you for watching", "thanks for watching", "you"] },
   // Assistant mode (its own push-to-talk key): window requests understood by a LOCAL model (Ollama).
+  //   key        the assistant's own push-to-talk key (written by bin/vocon-keybind); a plain key, not
+  //              a modifier combo, because a release bind with a modifier can miss the release
   //   endpoint   must be a loopback address (http://127.0.0.1:<port> or http://[::1]:<port>)
   //   think      "off" | "low" | "medium" | "high" (gpt-oss only takes low|medium|high; qwen3 wants off)
   //   clarifySeconds  how long "which window?" waits for an answer
-  //   unlockMinutes  how long a fingerprint unlock lasts after its last use
+  //   unlock     "password" (default): a floating terminal asks sudo for your password, so vocon never sees it;
+  //              "fingerprint": try the sensor first, then fall back to the password
+  //   unlockTimeoutSeconds  how long the unlock prompt waits
+  //   unlockMinutes  how long an unlock lasts after its last use
   //   maxWindows / maxTitleChars  how much of the window list the model is shown
   assistant: {
-    enabled: false, endpoint: "http://127.0.0.1:11434", model: "gpt-oss:20b", keepAlive: "10m", think: "low",
-    contextTokens: 4096, timeoutSeconds: 30, clarifySeconds: 30, unlockMinutes: 10, maxWindows: 40, maxTitleChars: 80,
+    enabled: false, key: "F8", endpoint: "http://127.0.0.1:11434", model: "gpt-oss:20b", keepAlive: "10m", think: "low",
+    contextTokens: 4096, timeoutSeconds: 30, clarifySeconds: 30, unlock: "password", unlockTimeoutSeconds: 60, unlockMinutes: 10, maxWindows: 40, maxTitleChars: 80,
   },
   // Your own commands, each one a path in the same command tree as the built-ins:
   //   { "say": "lock screen", "exec": ["omarchy-system-lock"] }          run a command
@@ -164,7 +169,7 @@ function validateCommands(raw, errors) {
 }
 
 // Bad values fall back to the default one by one (reported), like the other sections.
-function checkAssistant(assistant, errors) {
+function checkAssistant(assistant, errors, pushToTalkKey) {
   var fixed = Object.assign({}, assistant);
   var bad = function (key, why) {
     errors.push("assistant." + key + " " + why);
@@ -173,6 +178,8 @@ function checkAssistant(assistant, errors) {
   var inRange = function (key, min, max) {
     if (!(Number.isInteger(fixed[key]) && fixed[key] >= min && fixed[key] <= max)) bad(key, "must be a whole number between " + min + " and " + max);
   };
+  if (typeof fixed.key !== "string" || !/^[A-Za-z0-9_]+$/.test(fixed.key)) bad("key", "must be a single key name like F8");
+  else if (fixed.key === pushToTalkKey) bad("key", "must differ from pushToTalk.key");
   if (!isLoopbackEndpoint(fixed.endpoint)) bad("endpoint", "must be a loopback address like http://127.0.0.1:11434 (the assistant's model stays local)");
   if (typeof fixed.model !== "string" || fixed.model.trim() === "") bad("model", "must be a non-empty string");
   if (typeof fixed.keepAlive !== "string" || !/^[0-9]+[smh]$/.test(fixed.keepAlive)) bad("keepAlive", "must look like 10m, 30s or 1h");
@@ -180,6 +187,8 @@ function checkAssistant(assistant, errors) {
   inRange("contextTokens", 1024, 32768);
   inRange("timeoutSeconds", 5, 300);
   inRange("clarifySeconds", 5, 300);
+  if (["password", "fingerprint"].indexOf(fixed.unlock) === -1) bad("unlock", "must be password or fingerprint");
+  inRange("unlockTimeoutSeconds", 10, 300);
   inRange("unlockMinutes", 1, 120);
   inRange("maxWindows", 1, 100);
   inRange("maxTitleChars", 20, 200);
@@ -225,7 +234,7 @@ function checkRanges(config, errors) {
     });
     fixed = Object.assign({}, fixed, { matching: Object.assign({}, fixed.matching, { aliases: kept }) });
   }
-  fixed = Object.assign({}, fixed, { assistant: checkAssistant(config.assistant, errors) });
+  fixed = Object.assign({}, fixed, { assistant: checkAssistant(config.assistant, errors, config.pushToTalk.key) });
   if (typeof config.pushToTalk.key !== "string" || config.pushToTalk.key === "") {
     errors.push("pushToTalk.key must be a non-empty string");
     fixed = Object.assign({}, fixed, { pushToTalk: { key: defaults.pushToTalk.key } });

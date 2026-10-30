@@ -72,3 +72,26 @@ test("assistant: bad values are reported and defaulted one by one", () => {
     assert.ok(errors.some((e) => e.indexOf("assistant." + key) === 0), key);
   }
 });
+
+test("assistant.key: a single plain key, different from the push-to-talk key", () => {
+  assert.equal(defaults.assistant.key, "F8");
+  assert.equal(parse('{"assistant":{"key":"F7"}}').config.assistant.key, "F7");
+  for (const bad of ["SHIFT + F8", "F8 F9", 'F8"', "", "F10"]) {
+    const { config, errors } = parse(JSON.stringify({ assistant: { key: bad } }));
+    assert.equal(config.assistant.key, "F8", JSON.stringify(bad));
+    assert.ok(errors.some((e) => e.indexOf("assistant.key") === 0), JSON.stringify(bad));
+  }
+  const clash = parse('{"pushToTalk":{"key":"F8"}}');
+  assert.ok(clash.errors.some((e) => /assistant\.key must differ/.test(e)));
+});
+
+test("assistant.unlock: password by default, fingerprint optional, anything else is reported", () => {
+  assert.equal(defaults.assistant.unlock, "password");
+  assert.equal(parse('{"assistant":{"unlock":"fingerprint"}}').config.assistant.unlock, "fingerprint");
+  for (const bad of ["none", "pin", "", "Password"]) {
+    const { config, errors } = parse(JSON.stringify({ assistant: { unlock: bad } }));
+    assert.equal(config.assistant.unlock, "password", bad);
+    assert.ok(errors.some((e) => e.indexOf("assistant.unlock") === 0), bad);
+  }
+  assert.ok(parse('{"assistant":{"unlockTimeoutSeconds":5}}').errors.some((e) => /unlockTimeoutSeconds/.test(e)));
+});

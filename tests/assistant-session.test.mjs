@@ -54,6 +54,9 @@ test("locked: the key starts the fingerprint check, not a recording", () => {
   const r = run(initialState(cfg), press(T0));
   assert.equal(r.state.phase, "unlocking");
   assert.deepEqual(types(r.effects), ["auth.verify", "watchdog.arm", "notify"]);
+  assert.deepEqual(ofType(r.effects, "auth.verify"), [{ type: "auth.verify", method: "password", timeoutSeconds: 60 }]);
+  assert.match(ofType(r.effects, "notify")[0].body, /password/);
+  assert.deepEqual(ofType(r.effects, "watchdog.arm"), [{ type: "watchdog.arm", ms: 65000 }]);
   assert.equal(ofType(r.effects, "voxtype.start").length, 0);
   assert.deepEqual(types(run(r.state, press(T0 + 10)).effects), ["log"]);   // a second press is ignored
 });
@@ -69,9 +72,16 @@ test("unlocked by a fingerprint for unlockMinutes, then the key records", () => 
   assert.deepEqual(types(p.effects), ["voxtype.start", "watchdog.arm"]);
 });
 
+test("the fingerprint method asks the edge for it and says so", () => {
+  const fp = parse('{"assistant":{"enabled":true,"unlock":"fingerprint"}}').config;
+  const r = run(initialState(fp), press(T0));
+  assert.equal(ofType(r.effects, "auth.verify")[0].method, "fingerprint");
+  assert.match(ofType(r.effects, "notify")[0].body, /fingerprint/);
+});
+
 test("a failed unlock stays locked and shows only fixed texts", () => {
   const start = run(initialState(cfg), press(T0)).state;
-  for (const [reason, text] of [["failed", /not recognised/], ["timeout", /in time/], ["unavailable", /not available/], ["locked", /screen is locked/]]) {
+  for (const [reason, text] of [["failed", /failed/], ["timeout", /in time/], ["unavailable", /not available/], ["cancelled", /cancelled/], ["nopassword", /does not ask for a password/], ["locked", /screen is locked/]]) {
     const r = run(start, { type: "UnlockResult", ok: false, reason, at: T0 + 100 });
     assert.equal(r.state.phase, "idle");
     assert.equal(r.state.unlockedUntil, 0);
@@ -96,9 +106,13 @@ test("a spoken request goes to the local model and nothing runs yet", () => {
   const call = ofType(r.effects, "llm.interpret")[0];
   assert.equal(call.id, 1);
   assert.equal(call.timeoutSeconds, cfg.assistant.timeoutSeconds);
-  assert.match(call.request.user, /Request: go to the slack api window, banana-secret$/);
-  assert.match(call.request.user, /2: chromium \| Slack API - Chromium/);
-  assert.ok(!/0x/.test(JSON.stringify(call.request)), "no addresses go to the model");
+  assert.equal(call.url, "http://127.0.0.1:11434/api/chat");
+  assert.equal(call.body.model, cfg.assistant.model);
+  assert.equal(call.body.stream, false);
+  const user = call.body.messages[1].content;
+  assert.match(user, /Request: go to the slack api window, banana-secret$/);
+  assert.match(user, /2: chromium \| Slack API - Chromium/);
+  assert.ok(!/0x/.test(JSON.stringify(call.body)), "no addresses go to the model");
   assert.deepEqual(types(r.effects).filter((t) => t.indexOf("hypr.") === 0), ["hypr.snapshotClients"]);
   assert.equal(r.state.transcript, null);
   assert.equal(r.state.pending.windows.length, 5);
@@ -303,6 +317,15 @@ test("an unlock that lapsed while you were speaking sends nothing to the model",
   assert.equal(r.state.phase, "idle");
   assert.equal(ofType(r.effects, "llm.interpret").length, 0);
   assert.equal(ofType(r.effects, "notify")[0].title, "Assistant locked");
+});
+
+test("a non-loopback endpoint is refused again at the point of sending", () => {
+  const bad = { ...cfg, assistant: { ...cfg.assistant, endpoint: "http://evil.example.com:11434" } };
+  const u = run(initialState(bad), press(T0), { type: "UnlockResult", ok: true, at: T0 + 500 }).state;
+  const r = run(u, press(T0 + 2000), release(T0 + 2500), said("go to slack", T0 + 3000), snap(DESK, T0 + 3100));
+  assert.equal(r.state.phase, "idle");
+  assert.equal(ofType(r.effects, "llm.interpret").length, 0);
+  assert.equal(ofType(r.effects, "notify")[0].urgency, "critical");
 });
 
 test("nothing heard, or no windows, ends quietly without calling the model", () => {

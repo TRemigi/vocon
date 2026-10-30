@@ -30,6 +30,12 @@ Item {
     proc.running = true
   }
 
+  // Stops the process if it is running. `finished` still fires (with a non-zero code), so a caller that
+  // cancels must ignore the result it gets afterwards.
+  function cancel() {
+    if (proc.running) proc.running = false
+  }
+
   function _check() {
     if (root._exited && root._outDone && root._errDone) root._finish()
   }

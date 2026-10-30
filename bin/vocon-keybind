@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Write the push-to-talk binding into ~/.config/hypr/bindings.lua from pushToTalk.key
-# in ~/.config/vocon/config.json (default F10). Backs up first, rolls back if Hyprland
-# reports config errors. Re-run after changing the key.
+# in ~/.config/vocon/config.json (default F10). When assistant.enabled is true it also binds the
+# assistant's own key (assistant.key, default F8). Backs up first, rolls back if Hyprland
+# reports config errors. Re-run after changing a key or enabling the assistant.
 set -euo pipefail
 
 CONFIG="$HOME/.config/vocon/config.json"
@@ -20,6 +21,22 @@ if ! [[ "$KEY" =~ ^[A-Za-z0-9_+\ ]+$ ]]; then
   echo "ERROR: unsupported key '$KEY' (letters, digits, '_', '+' and spaces only)" >&2
   exit 2
 fi
+
+# Assistant mode is opt-in; its key must be a plain key name (a release bind with a modifier can miss
+# the release) and different from the push-to-talk key.
+AKEY=""
+if [ -f "$CONFIG" ] && [ "$(jq -r '.assistant.enabled // false' "$CONFIG")" = "true" ]; then
+  AKEY="$(jq -r '.assistant.key // empty' "$CONFIG")"
+  AKEY="${AKEY:-F8}"
+  if ! [[ "$AKEY" =~ ^[A-Za-z0-9_]+$ ]]; then
+    echo "ERROR: unsupported assistant key '$AKEY' (one plain key name, like F8)" >&2
+    exit 2
+  fi
+  if [ "$AKEY" = "$KEY" ]; then
+    echo "ERROR: assistant.key and pushToTalk.key are both '$KEY'" >&2
+    exit 2
+  fi
+fi
 [ -f "$FILE" ] || { echo "ERROR: $FILE not found" >&2; exit 2; }
 
 BACKUP="$FILE.bak.$(date +%s)"
@@ -36,6 +53,10 @@ awk -v b="$BEGIN" -v e="$END" '
   printf '%s\n' "$BEGIN"
   printf 'o.bind("%s", "vocon: push-to-talk start", "omarchy-shell -q vocon start")\n' "$KEY"
   printf 'o.bind("%s", "vocon: push-to-talk stop", "omarchy-shell -q vocon stop", { release = true })\n' "$KEY"
+  if [ -n "$AKEY" ]; then
+    printf 'o.bind("%s", "vocon: assistant start", "omarchy-shell -q vocon assistStart")\n' "$AKEY"
+    printf 'o.bind("%s", "vocon: assistant stop", "omarchy-shell -q vocon assistStop", { release = true })\n' "$AKEY"
+  fi
   printf '%s\n' "$END"
 } > "$FILE"
 rm -f "$FILE.tmp"
@@ -48,4 +69,4 @@ if [ -n "$ERRS" ]; then
   echo "ERROR: $ERRS (rolled back)" >&2
   exit 1
 fi
-echo "OK: hold $KEY to talk"
+echo "OK: hold $KEY to talk${AKEY:+; hold $AKEY for the assistant}"

@@ -142,7 +142,7 @@ phrases. Example: `move space 1` = `move` → `space` → `<workspace>`.
    actions must go through `complete`. Residual window: a lock engaging in the few ms between the
    probe and the action.
 
-## Assistant mode (in progress: slices 1-2 of 5 built, the pure core and the session logic)
+## Assistant mode (in progress: slices 1-3 of 5 built; core, session, and the live edge)
 
 A second, separate mode for fuzzy requests ("send the Claude window to workspace 3", "bring the
 database one here"). **Rules it must keep** (they qualify, not replace, the hard requirements):
@@ -161,26 +161,33 @@ database one here"). **Rules it must keep** (they qualify, not replace, the hard
    not the prompt's "don't follow instructions" sentence: a hostile title can at worst steer to another
    existing window. Hence only **reversible** actions (focus, bring, send to workspace); `close` and
    anything outward-facing are out of scope until they have their own confirm step.
-5. **Fingerprint unlock, sudo-style, always required** (`fprintd-verify`, valid `assistant.unlockMinutes`
-   after last use, every use extends it), including for windows. The key does nothing but start the check
-   until it succeeds; you press again to speak. The reducer holds the policy (`unlockedUntil`); the
-   fingerprint probe itself is infra (slice 3). **Fail closed on time**: the core has no clock, so every
-   event carries `at` (stamped once, centrally, in `Service.dispatch`), each event is judged by its own
-   `at`, and no `at` means 0, which is locked. The unlock is re-checked when the transcript arrives and
-   again before actions run. Assistant completion goes through `complete`, so the screen-lock gate (invariant 8)
-   covers it too.
+5. **Sudo-style unlock, always required, by typed password.** `bin/vocon-unlock` runs in a small floating
+   terminal (Omarchy's `org.omarchy.terminal`, the way its own scripts ask for a password) and calls
+   `sudo -k -v`, so **the password never reaches vocon**: not the core, not the QML, not argv, not a log.
+   It writes one word (`ok|failed|cancelled|timeout|nopassword`) atomically to a file in `$XDG_RUNTIME_DIR`
+   (0700), which `infra/Auth.qml` polls. `-k` means it unlocks vocon and nothing else (sudo's own cache is
+   untouched). **Fails closed**: if sudo would not ask for a password (NOPASSWD) it proves nothing, so the result
+   is `nopassword`, not `ok`. `assistant.unlock: "fingerprint"` tries `fprintd-verify` first and falls back to the
+   password terminal (the default is the password because the owner runs with the lid shut, out of reach of the
+   sensor). Unlock lasts `assistant.unlockMinutes` after the last use; every use extends it. The reducer holds the
+   policy (`unlockedUntil`) and never sees a secret. **Fail closed on time**: the core has no clock, so every event
+   carries `at` (stamped once, in `Service.dispatch`), each event is judged by its own `at`, and no `at` means 0,
+   which is locked. The unlock is re-checked when the transcript arrives and again before actions run. Assistant
+   completion goes through `complete`, so the screen-lock gate (invariant 8) covers it too. The unlock stops
+   accidental use (speech in the room); it is not a defence against code already running as you. Wrong passwords
+   count toward PAM's faillock like any sudo attempt (sudo allows three tries per prompt).
 6. **No speech, window titles or model replies in logs** (extends invariant 3). *Applies to the infra when it lands.*
 
 **Session shape.** One reducer, not two: both keys share the microphone, so they share the recording
 phases; `state.mode` ("command" | "assistant") says which key started a recording, and a release only counts
 for its own key. The assistant adds the phases `unlocking`, `thinking` and `clarifying` (`assistant/session.mjs`,
 a sub-reducer `listening/session.mjs` delegates to). `settle()` in `reduce` is the one place that undoes what a
-phase started whenever it is left by any event: model request (`llm.cancel`), fingerprint check (`auth.cancel`),
+phase started whenever it is left by any event: model request (`llm.cancel`), unlock prompt (`auth.cancel`),
 the question on screen (`assistant.clarify.hide` + timer). Never `voxtype.cancel` unless a recording is
 running (invariant 7). Replies carry the request `id`, so a stale one is dropped. A spoken answer to "which
 window?" is re-checked against a fresh window snapshot (the window must still exist; "here" means where you are
 now); `parseChoice` takes numbers, ordinals ("the second one") and cancel words, with cancel winning.
-New effects the shell must implement (slice 3): `auth.verify|cancel`, `llm.interpret|cancel`, `assistant.status`,
+Effects the shell implements (`infra/Executor.qml`): `auth.verify{method}|cancel`, `llm.interpret|cancel`, `assistant.status`,
 `assistant.clarify.show|hide`, `clarify.timer.arm|disarm`; new events: `AssistPressed|Released`, `UnlockResult`,
 `ModelReplied|Failed`, `ChoiceSelected`, `ClarifyExpired`. A keyboard choice uses the snapshot from when the
 question was asked (the overlay holds keyboard focus, so windows shouldn't move meanwhile).
@@ -190,11 +197,20 @@ Built so far: `assistant/ollama.mjs` (endpoint check, `/api/chat` body), `assist
 `assistant/session.mjs`, `listening/state.mjs`, `hypr.moveWindow`
 (`hl.dsp.window.move({ workspace, follow = false, window = "address:0x…" })`, verified live on throwaway
 windows; Hyprland answers `ok` even for an address that no longer exists, so a stale address is a silent no-op).
-To do: `infra/Llm.qml` (HTTP to Ollama, no speech/titles/replies in logs) + `infra/Auth.qml` (`fprintd-verify`;
-report `locked` if the screen is locked) + clarify `Timer` + IPC `assist-start|assist-stop|choose` + second keybind
-(`bin/vocon-keybind`) + `Service.dispatch` stamping `at`; then the clarify overlay (slice 4); README (slice 5).
-The snapshot gives the current workspace only via the focused window, so `bring` with nothing focused says it
-can't tell (add `hyprctl activeworkspace` to the snapshot if that matters).
+Also built and **verified live** (2026-10-30, real `gpt-oss:20b`, two throwaway terminals, no real window moved,
+focus and config restored): `infra/Auth.qml`, `infra/Llm.qml` (XHR to Ollama; fixed error texts, nothing quoted),
+`Run.cancel()`, the Executor handlers, IPC `assistStart|assistStop|choose(n)|assistSimulate(text)`, and opt-in
+`bin/vocon-keybind` (binds `assistant.key`, default F8, only when `assistant.enabled`; tested against a stubbed
+`hyprctl` and a fake `$HOME`). Observed: send/bring work and the view stays put; an ambiguous request shows the
+question, and "choose 2", "the first one" by voice, and cancel all behave; ~13 s for a cold first request (model
+load), ~6-8 s warm, ~0.6 s for a spoken answer (no model); the log held only counts and outcome kinds (no words,
+titles or class names). Not exercised live: the real microphone path and keybind (the keybind was not installed),
+the fingerprint method (the owner has no reachable sensor), a model that is down, the question timing out.
+To do: the clarify overlay (slice 4; until then `assistant.clarify.show` is a plain toast and `hide` does
+nothing); README (slice 5); `hyprctl activeworkspace` in the snapshot so `bring` works with nothing focused.
+Known rough edges: clarify rows are numbered in Hyprland's address order, which is arbitrary (order by recency or
+title would read better); `Executor`'s toast escapes markup in window titles but older toasts that quote a
+transcript do not.
 
 ## Packs, adapters and how to extend
 
@@ -265,7 +281,7 @@ registered in `core/commands/packs/index.mjs`. It is active unless
   dispatch events and return.
 - **`Process.onExited` can fire before `StdioCollector` has its text.** Never read output in
   `onExited`; use `infra/Run.qml` (reports once the process exited *and* streams drained).
-- Config lives in `~/.config/vocon/config.json` (JSON, hot-reloaded via `FileView`). Logs:
+- Config lives in `~/.config/vocon/config.json` (JSON, meant to hot-reload via `FileView`). **Observed 2026-10-30: it did not reload** after either a rename-replace or an in-place write (no `config loaded` line, behaviour unchanged); a shell restart loads it. Not investigated; restart after editing until it is. Logs:
   `qs log -p /usr/share/omarchy/shell | grep vocon:` (the log shows outcomes only, never transcripts; to see what was heard use the failure
   notification, or `journalctl --user -u voxtype`).
 
@@ -362,6 +378,7 @@ registered in `core/commands/packs/index.mjs`. It is active unless
 | Claude Desktop pack mirrors the Slack shape; shortcuts taken from the app, not blog posts | Third-party shortcut lists disagreed (e.g. Ctrl+K). Ground truth = the docs table (Code tab) plus the accelerators in the installed build's menu (`grep` the `app.asar` for `accelerator:`). Navigation/UI is also available as `claude …`; acting commands (`close`, `reopen`, `stop`, `send`, `accept`, edit keys) are focused-only. Niche shortcuts were put to the owner: added `newline` and `choose <item>` (1–9, own `item` slot); declined dev tools, element picker and — since the owner's app has no Browser pane — `pane browser`; not asked about/not added: file dialogs, quit, submit diff comments, paste-and-match-style, F1 help. The app has no tab shortcut, so `tab home|code` goes through the command palette with fixed text. `session <name>` types *spoken* text into that palette, which also holds commands, so it is focused-only and `packs.claude.sessionSubmit: false` leaves Enter to the user (the palette is a second command interpreter; keep speech-fed palette use navigation-scoped). |
 | `dictate <text>` types in one utterance; bare `dictate` still arms | The two-press flow was clumsy. The text comes from the *raw* transcript minus its first word (slots only carry normalised words, which would lose case and punctuation); it reuses `completeDictation`, so ignore list, `cancel` and the focus check still apply, and the "heard ..." log / success notification are skipped because they would leak the text. |
 | Assistant mode: local model (`gpt-oss:20b` via Ollama) returns window *numbers*; code validates and decides | Slice-0 benchmark on an invented 11-window desktop, 12 requests, one run each at temperature 0 (prompt tuned after the first run, so scores are optimistic). Keywords + code resolver: 10/12 but its misses were confident wrong picks (two database windows, picked one). Window-number list: 10/12 with misses only as over-asking (a safe direction). `qwen3:8b`: 6/12, mis-corrected "Claude" to "Claire", followed an injected title once. gpt-oss ~16 tok/s, ~5-7 s per call warm, ~7 s cold. Rejected for the first use case: Slack (needs an app install the owner can't do; the workflow route can't read or reply as the user; the Slack MCP costs ~10-30x a single call per request, is slower, and sends content to a cloud model). Considered later: a deterministic fast path that skips the model when the words match one window directly. |
+| Assistant unlock = typed password through `sudo -v` in a floating terminal; fingerprint optional | The owner runs with the lid shut (no sensor access) and asked for "sudo-style". Rejected: fingerprint-only (unusable here; I had also misread `fprintd-list` as meaning it was usable); an own password overlay (the system password would pass through plugin code); `pkexec` (no polkit agent is installed, and its dialog text is generic); an assistant-specific PIN (needs hashing tools the core does not have). Terminal + `sudo -v` is Omarchy's own convention and keeps the secret out of vocon entirely. |
 | `bring` only moves; it does not also focus | Two actions run as two detached `hyprctl` processes with no ordering; focus-before-move would switch workspace away. |
 
 ## Known limitations and backlog
