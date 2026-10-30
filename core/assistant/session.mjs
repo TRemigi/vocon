@@ -127,7 +127,7 @@ function stillThere(clients, address) {
 function finish(state, p) {
   if (p.kind === "none") return done(state, [notify("Assistant", p.reason, "low"), log("assistant: nothing to do")]);
   if (!isUnlocked(state)) {
-    return done(state, [notify("Assistant locked", "The unlock expired; touch the sensor and ask again", "normal"), log("assistant: unlock expired")]);
+    return done(state, [notify("Assistant locked", "The unlock expired; press the assistant key to unlock, then ask again", "normal"), log("assistant: unlock expired")]);
   }
   return result(extend(idle(state)), [{ type: "watchdog.disarm" }].concat(p.actions, [notify("Assistant", p.summary, "low"), log("assistant: acted")]));
 }
@@ -217,7 +217,7 @@ export function complete(state) {
     return answering ? stillAsking(state, nothing) : done(state, nothing);
   }
   if (!isUnlocked(state)) {
-    return done(state, [notify("Assistant locked", "The unlock expired; touch the sensor and try again", "normal"), log("assistant: unlock expired")]);
+    return done(state, [notify("Assistant locked", "The unlock expired; press the assistant key to unlock, then try again", "normal"), log("assistant: unlock expired")]);
   }
   return answering ? answer(state, heard) : interpretNew(state, heard);
 }

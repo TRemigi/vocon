@@ -206,6 +206,8 @@ question, and "choose 2", "the first one" by voice, and cancel all behave; ~13 s
 load), ~6-8 s warm, ~0.6 s for a spoken answer (no model); the log held only counts and outcome kinds (no words,
 titles or class names). Not exercised live: the real microphone path and keybind (the keybind was not installed),
 the fingerprint method (the owner has no reachable sensor), a model that is down, the question timing out.
+Remaining work, with the security findings, the config hot-reload question and the live-test recipe, is in
+`docs/assistant-remaining-work.md`.
 To do: the clarify overlay (slice 4; until then `assistant.clarify.show` is a plain toast and `hide` does
 nothing); README (slice 5); `hyprctl activeworkspace` in the snapshot so `bring` works with nothing focused.
 Known rough edges: clarify rows are numbered in Hyprland's address order, which is arbitrary (order by recency or

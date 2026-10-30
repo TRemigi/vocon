@@ -16,11 +16,13 @@ hold F10:   "dictate Hi team..."             ->  "Hi team..." is typed into the 
 ```
 
 Commands are CLI-like (`move space 1`), not free-form sentences, so they are predictable,
-and new ones are easy to add.
+and new ones are easy to add. An optional [assistant mode](#assistant-mode-optional) on a second
+key understands looser window requests ("bring the database one here") with a local model.
 
 **Contents:** [How it works](#how-it-works) · [Requirements](#requirements) ·
 [Installation](#installation) · [Using vocon](#using-vocon) · [Command reference](#command-reference) ·
-[Configuration](#configuration) · [Improving recognition](#improving-recognition) ·
+[Configuration](#configuration) · [Assistant mode](#assistant-mode-optional) ·
+[Improving recognition](#improving-recognition) ·
 [Troubleshooting](#troubleshooting) · [Updating and uninstalling](#updating-and-uninstalling) ·
 [Command-line reference](#command-line-reference) · [Development](#development)
 
@@ -52,6 +54,7 @@ actions: hyprctl (windows/workspaces), uwsm-app (launch), wtype (keystrokes), no
 | `wtype` | Sends keystrokes for Slack and dictation. The VoxType installer installs it. |
 | `jq` | Used by the install scripts. Ships with Omarchy. |
 | A microphone | A **non-Bluetooth** mic is strongly recommended, see [the mic note](#2-choose-your-microphone). |
+| Ollama + a model | **Optional**, only for [assistant mode](#assistant-mode-optional): `ollama` from the official repos and about 13 GB for `gpt-oss:20b`. |
 
 Optional: `node` (any recent version) to run the unit tests.
 
@@ -553,6 +556,140 @@ Minimal example:
 }
 ```
 
+## Assistant mode (optional)
+
+A second push-to-talk key for requests that don't fit the strict command grammar. You describe a
+window, and a **local** language model works out which one you mean:
+
+```
+hold F8:   "go to the Slack API window"                  ->  that window is focused
+hold F8:   "bring the production database here"          ->  that window moves to the workspace you are on
+hold F8:   "send the Claude window to workspace 3"       ->  that window moves to workspace 3; you stay where you are
+hold F8:   "send the terminal to workspace 4"            ->  two terminals? a numbered question appears (below)
+```
+
+It only focuses and moves windows (nothing is closed, typed or sent), and it is **off by default**.
+Normal commands on F10 never go near a model.
+
+| | Normal mode (F10) | Assistant mode (F8) |
+|---|---|---|
+| Matching | Strict grammar, deterministic | A local model interprets your words, then vocon **checks** its answer |
+| Speed | About 50 ms after VoxType | About 6-8 s per request (about 13 s for the first one after the model has been idle) |
+| Needs | VoxType | VoxType, Ollama and a model (about 13 GB) |
+| Unlock | None | Your password, once per session (see [Unlocking](#unlocking)) |
+
+### Setup
+
+**1. Install Ollama** (official Arch repos; `ollama-vulkan` adds GPU support for AMD and Intel):
+
+```sh
+sudo pacman -S ollama ollama-vulkan
+sudo systemctl enable --now ollama
+```
+
+**2. Integrated AMD or Intel GPU only.** Ollama ignores integrated GPUs unless you allow them. Skip
+this with a discrete GPU. Without a GPU it runs on the CPU, which has not been measured.
+
+```sh
+sudo mkdir -p /etc/systemd/system/ollama.service.d
+printf '[Service]\nEnvironment=OLLAMA_IGPU_ENABLE=1\n' | sudo tee /etc/systemd/system/ollama.service.d/igpu.conf
+sudo systemctl daemon-reload && sudo systemctl restart ollama
+journalctl -u ollama --since '-1min' | grep 'inference compute'     # should mention Vulkan
+```
+
+**3. Download the model** (about 13 GB, once; it needs about 13 GB of free memory while loaded):
+
+```sh
+ollama pull gpt-oss:20b
+```
+
+`gpt-oss:20b` is the model vocon was built and tested with. `qwen3:8b` is smaller and faster but was
+less accurate in testing (it followed a hostile window title once); to try it, set
+`assistant.model` to `"qwen3:8b"` and `assistant.think` to `"off"`.
+
+**4. Turn it on.** In `~/.config/vocon/config.json`:
+
+```json
+{ "assistant": { "enabled": true } }
+```
+
+Then restart the shell so it reads the file: `omarchy-restart-shell`. (Don't count on a saved config
+being picked up by the running shell; in testing it was not.)
+
+**5. Bind the key.** `bin/vocon-keybind` also binds the assistant key (F8 by default; change it with
+`assistant.key`) when the assistant is enabled. It backs up and rolls back like the push-to-talk binding.
+
+```sh
+cd ~/.config/omarchy/plugins/vocon && bin/vocon-keybind
+# OK: hold F10 to talk; hold F8 for the assistant
+```
+
+**6. Try it without speaking.** This **moves real windows**, so use a window you don't mind moving:
+
+```sh
+omarchy-shell vocon assistStart                       # only while locked: opens the unlock terminal (below). When already
+                                                      # unlocked it starts recording, so skip it and go straight to the next line
+omarchy-shell vocon assistSimulate "send the terminal to workspace 3"
+omarchy-shell vocon status                            # thinking ... then idle
+```
+
+### Unlocking
+
+The first time you press the assistant key (and again after the unlock expires) a small floating
+terminal opens and **sudo asks for your password**. Type it there. vocon only learns "ok" or "failed",
+and **never sees the password**. Then press the key again, hold it and speak. The unlock lasts
+`assistant.unlockMinutes` (10) after you last used the assistant.
+
+- It needs sudo to ask for a password. If your sudo is passwordless (`NOPASSWD`), vocon refuses to
+  unlock, because it couldn't tell who was typing.
+- Wrong passwords count toward your system's lockout like any other sudo attempt.
+- It stops accidental use (someone talking near the mic). It is not a defence against software already
+  running as you.
+- Have a working fingerprint reader? `"unlock": "fingerprint"` tries it first and falls back to the
+  password. It is untested on the author's machine (no reachable sensor).
+
+### When more than one window fits
+
+vocon asks instead of guessing: a notification lists numbered choices. Say **"two"**, **"the second
+one"** or **"number two"**, holding the assistant key; say **"cancel"** to drop it, or answer from a
+shell with `omarchy-shell vocon choose 2`. An unanswered question expires after `assistant.clarifySeconds`
+(30). The numbers follow Hyprland's internal window order, so read the titles, not the position. A proper
+on-screen picker is planned.
+
+### Configuration
+
+All under `assistant` in `~/.config/vocon/config.json`; restart the shell after editing.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Turn assistant mode on. |
+| `key` | `"F8"` | The assistant's key. A single plain key (not a modifier combo), different from `pushToTalk.key`. Re-run `bin/vocon-keybind` after changing it. |
+| `endpoint` | `"http://127.0.0.1:11434"` | Where Ollama listens. **Must be a loopback address** (`127.0.0.1` or `[::1]`); anything else is rejected, so your speech and window titles can't leave the machine. |
+| `model` | `"gpt-oss:20b"` | Ollama model name. |
+| `think` | `"low"` | `"off"`, `"low"`, `"medium"` or `"high"`. `gpt-oss` takes low, medium or high; `qwen3` wants `"off"`. |
+| `keepAlive` | `"10m"` | How long Ollama keeps the model loaded after a request (`30s`, `10m`, `1h`). Loaded, it uses about 13 GB. |
+| `contextTokens` | `4096` | Model context size (1024-32768). |
+| `timeoutSeconds` | `30` | How long to wait for the model (5-300). |
+| `clarifySeconds` | `30` | How long a "which window?" question waits (5-300). |
+| `unlock` | `"password"` | `"password"`, or `"fingerprint"` (tries the reader, then the password). |
+| `unlockTimeoutSeconds` | `60` | How long the unlock prompt waits (10-300). |
+| `unlockMinutes` | `10` | How long an unlock lasts after your last use (1-120). |
+| `maxWindows` | `40` | How many windows (most recently used first) the model is shown (1-100). |
+| `maxTitleChars` | `80` | Longest window title shown to the model (20-200). |
+
+### What it sees and what it can do
+
+- **It sees** what you said and the **class and title of each open window**, sent to Ollama on
+  `127.0.0.1` only. Neither is written to vocon's log. Window addresses are never sent.
+- **It can only** focus a window, move one to your current workspace, or send one to workspace 1-9, and
+  only windows that exist right now. The model's answer is checked against a fixed list of verbs and the
+  real window list before anything runs.
+- **Window titles are untrusted.** A web page controls its tab title, so a page could try to steer the
+  model. The worst it can do is pick a different existing window, and every action is easy to undo. The
+  notification shows which window was acted on.
+- **Limits:** `bring` needs a focused window to know which workspace is current. A request the model
+  misreads may pick the wrong window; check the notification.
+
 ## Improving recognition
 
 Most misrecognition is audio, not the model. In rough order of payoff:
@@ -641,6 +778,11 @@ exception you ask for: the `note` commands hand what you said to braindump, whic
 - **Dictated text** is typed through a pipe and never appears in a notification. A note is piped to
   `braindump capture` the same way, and braindump's "Note queued" toast never quotes it.
 
+- **Assistant mode** (only if you turn it on): what you say and the class and title of your open windows
+  go to the Ollama model on `127.0.0.1`, and nowhere else (any other address is refused). Neither is
+  logged. Its notifications name the window it acted on, so that title is in Omarchy's notification
+  history like the item below. Your password is typed to sudo, never to vocon.
+
 Two things outside vocon do keep text, and vocon can't turn them off:
 
 - A "Didn't understand" notification quotes what was heard, and Omarchy keeps its last 10
@@ -666,6 +808,11 @@ First, always: `omarchy-shell vocon status` (should print `idle`) and
 | Slack commands do nothing | Slack must be the focused window (except `slack ...`). Check its class: `hyprctl clients -j \| jq -r '.[].class'` and set `packs.slack.match` if it isn't `slack`. Make sure `wtype` is installed. Raise the Slack delays if the switcher is slow. |
 | "Slack isn't running" | The `slack ...` form needs a Slack window; say `open slack` first. |
 | Keystrokes went to the wrong window | Keystroke commands go to whichever window is focused when they run. Hyprland's focus follows the mouse by default, so a nudge of the mouse mid-command can change the target. |
+| Assistant key does nothing | Is `assistant.enabled` true, and did you restart the shell (`omarchy-restart-shell`) and re-run `bin/vocon-keybind`? A notification says "Assistant is off" when it is disabled. |
+| "Couldn't reach Ollama" | `systemctl is-active ollama`; then `ollama list` should show your model. `ollama pull gpt-oss:20b` if it doesn't. |
+| "Ollama returned an error (HTTP 404)" | The model in `assistant.model` isn't downloaded: `ollama pull <name>`. |
+| Assistant is very slow | A cold first request takes about 13 s while the model loads, then about 6-8 s. `journalctl -u ollama \| grep 'inference compute'` should name your GPU (see [Setup](#setup) step 2); `keepAlive` controls how long it stays loaded. |
+| The unlock terminal says "Authentication failed" or nothing happens | It uses your normal sudo password. Passwordless sudo is refused on purpose. Too many wrong passwords can lock you out of sudo for a while (system setting). |
 | Music pauses on every command | `voxtype config set audio.pause_media false`, then restart `voxtype`. |
 | Transcription is slow | See [Performance](#performance): a faster engine or GPU acceleration. |
 | A command you expect isn't recognised | Commands are strict: say the words in order with no filler. The notification lists what was expected next. Test it: `omarchy-shell vocon simulate "<what you said>"`. |
@@ -692,11 +839,14 @@ left installed (`omarchy-voxtype-remove` removes it).
 | Command | Does |
 |---|---|
 | `bin/vocon-install [--restart]` | Install/update the plugin, enable it, seed the config. `--restart` restarts the shell so new code loads. |
-| `bin/vocon-keybind [key]` | Write the push-to-talk binding (default: `pushToTalk.key`). Backs up and rolls back on error. |
+| `bin/vocon-keybind [key]` | Write the push-to-talk binding (default: `pushToTalk.key`), plus the assistant's (`assistant.key`) when the assistant is enabled. Backs up and rolls back on error. |
 | `omarchy-shell vocon start` / `stop` | What the key binding calls on press / release. |
 | `bin/vocon-commands [--synonyms] [--config <path>]` | List the voice commands currently available, from your config (disabled packs, your apps and custom commands included). Commands that only work while an app is focused are grouped by app. `--synonyms` shows every accepted spelling. Needs only `node`, not the running shell. |
-| `omarchy-shell vocon cancel` | Cancel a recording and disarm dictation. |
-| `omarchy-shell vocon status` | `idle`, `listening` or `transcribing`. |
+| `omarchy-shell vocon assistStart` / `assistStop` | What the assistant key calls on press / release (when locked, the press opens the unlock prompt). |
+| `omarchy-shell vocon choose <n>` | Answer the assistant's "which window?" question by number. |
+| `omarchy-shell vocon assistSimulate "<text>"` | Run text through the assistant (unlock first); **moves real windows**. |
+| `omarchy-shell vocon cancel` | Cancel a recording, a pending assistant request or question, and disarm dictation. |
+| `omarchy-shell vocon status` | `idle`, `listening`, `transcribing`, or in assistant mode `unlocking`, `thinking` or `clarifying`. |
 | `omarchy-shell vocon dictation` | `armed` or `off`. |
 | `omarchy-shell vocon simulate "<text>"` | Run text through the real pipeline, **executing the actions for real**. |
 | `qs log -p /usr/share/omarchy/shell \| grep vocon:` | What vocon decided: word count, outcome, command id; never the words (see [Privacy](#privacy)). |
